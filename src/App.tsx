@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import LoginScreen from './components/LoginScreen';
+import RegisterScreen from './components/RegisterScreen';
 import LocationSelectionScreen from './components/LocationSelectionScreen';
 import DocumentUploadScreen from './components/DocumentUploadScreen';
 import ReviewScreen from './components/ReviewScreen';
 import SuccessScreen from './components/SuccessScreen';
 import { DocumentSubmission, User } from './types';
 
-type Screen = 'login' | 'location' | 'upload' | 'review' | 'success';
+type Screen = 'login' | 'register' | 'location' | 'upload' | 'review' | 'success';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('login');
@@ -17,6 +18,18 @@ function App() {
   const handleLogin = (username: string) => {
     setUser({ id: Date.now().toString(), username });
     setCurrentScreen('location');
+  };
+
+  const handleSwitchToRegister = () => {
+    setCurrentScreen('register');
+  };
+
+  const handleRegisterSuccess = () => {
+    setCurrentScreen('login');
+  };
+
+  const handleSwitchToLogin = () => {
+    setCurrentScreen('login');
   };
 
   const handleLocationSelect = (location: 'carrao' | 'alphaville') => {
@@ -55,7 +68,11 @@ function App() {
   };
 
   if (currentScreen === 'login') {
-    return <LoginScreen onLogin={handleLogin} />;
+    return <LoginScreen onLogin={handleLogin} onSwitchToRegister={handleSwitchToRegister} />;
+  }
+
+  if (currentScreen === 'register') {
+    return <RegisterScreen onRegisterSuccess={handleRegisterSuccess} onSwitchToLogin={handleSwitchToLogin} />;
   }
 
   if (currentScreen === 'location') {

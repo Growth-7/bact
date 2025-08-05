@@ -12,10 +12,12 @@ datasource db {
 }
 
 model User {
-  id          String       @id @default(cuid())
-  username    String       @unique
-  submissions Submission[]
-  createdAt   DateTime     @default(now())
+  id               String       @id @default(cuid())
+  username         String       @unique
+  password         String
+  user_id_bitrix24 String       @unique
+  submissions      Submission[]
+  createdAt        DateTime     @default(now())
 }
 
 model Submission {
