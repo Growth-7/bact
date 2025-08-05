@@ -14,27 +14,13 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<'carrao' | 'alphaville' | null>(null);
   const [documentData, setDocumentData] = useState<DocumentSubmission | null>(null);
+  const [bitrixDealId, setBitrixDealId] = useState<string | null>(null);
 
-  const handleLogin = (username: string) => {
-    setUser({ id: Date.now().toString(), username });
+  // ATUALIZADO: Recebe o objeto User completo
+  const handleLogin = (loggedInUser: User) => {
+    console.log('Usuário recebido no login:', loggedInUser); // Log para depuração
+    setUser(loggedInUser);
     setCurrentScreen('location');
-  };
-
-  const handleSwitchToRegister = () => {
-    setCurrentScreen('register');
-  };
-
-  const handleRegisterSuccess = () => {
-    setCurrentScreen('login');
-  };
-
-  const handleSwitchToLogin = () => {
-    setCurrentScreen('login');
-  };
-
-  const handleLocationSelect = (location: 'carrao' | 'alphaville') => {
-    setSelectedLocation(location);
-    setCurrentScreen('upload');
   };
 
   const handleDocumentSubmit = (data: DocumentSubmission) => {
@@ -42,15 +28,8 @@ function App() {
     setCurrentScreen('review');
   };
 
-  const handleReviewBack = () => {
-    setCurrentScreen('upload');
-  };
-
-  const handleLocationBack = () => {
-    setCurrentScreen('location');
-  };
-
-  const handleFinalSubmit = () => {
+  const handleFinalSubmit = (submissionResult: { bitrixDealId: string }) => {
+    setBitrixDealId(submissionResult.bitrixDealId);
     setCurrentScreen('success');
   };
 
@@ -58,54 +37,39 @@ function App() {
     setCurrentScreen('location');
     setDocumentData(null);
     setSelectedLocation(null);
+    setBitrixDealId(null);
   };
-
+  
   const handleLogout = () => {
     setUser(null);
-    setDocumentData(null);
-    setSelectedLocation(null);
     setCurrentScreen('login');
   };
 
-  if (currentScreen === 'login') {
-    return <LoginScreen onLogin={handleLogin} onSwitchToRegister={handleSwitchToRegister} />;
-  }
-
-  if (currentScreen === 'register') {
-    return <RegisterScreen onRegisterSuccess={handleRegisterSuccess} onSwitchToLogin={handleSwitchToLogin} />;
-  }
-
-  if (currentScreen === 'location') {
-    return <LocationSelectionScreen onNext={handleLocationSelect} onBack={handleLogout} />;
-  }
-
-  if (currentScreen === 'upload' && selectedLocation) {
-    return (
-      <DocumentUploadScreen
-        location={selectedLocation}
-        onNext={handleDocumentSubmit}
-        onBack={handleLocationBack}
-      />
-    );
-  }
-
-  if (currentScreen === 'review' && documentData) {
-    return (
-      <ReviewScreen
-        data={documentData}
-        onBack={handleReviewBack}
-        onSubmit={handleFinalSubmit}
-      />
-    );
-  }
-
-  if (currentScreen === 'success') {
-    return <SuccessScreen onReset={handleReset} />;
+  switch (currentScreen) {
+    case 'login':
+      return <LoginScreen onLogin={handleLogin} onSwitchToRegister={() => setCurrentScreen('register')} />;
+    case 'register':
+      return <RegisterScreen onRegisterSuccess={() => setCurrentScreen('login')} onSwitchToLogin={() => setCurrentScreen('login')} />;
+    case 'location':
+      return <LocationSelectionScreen onNext={(loc) => { setSelectedLocation(loc); setCurrentScreen('upload'); }} onBack={handleLogout} />;
+    case 'upload':
+      if (selectedLocation) {
+        return <DocumentUploadScreen location={selectedLocation} onNext={handleDocumentSubmit} onBack={() => setCurrentScreen('location')} />;
+      }
+      break;
+    case 'review':
+      // Garante que o usuário existe antes de renderizar
+      if (documentData && user) {
+        return <ReviewScreen data={documentData} user={user} onBack={() => setCurrentScreen('upload')} onSubmit={handleFinalSubmit} />;
+      }
+      break;
+    case 'success':
+      return <SuccessScreen onReset={handleReset} bitrixDealId={bitrixDealId} />;
   }
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-      <p className="text-slate-600">Carregando...</p>
+      <p>Carregando...</p>
     </div>
   );
 }

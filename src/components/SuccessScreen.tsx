@@ -1,13 +1,16 @@
 import React from 'react';
-import { CheckCircle, FileText, ArrowLeft } from 'lucide-react';
+import { CheckCircle, ArrowLeft, ExternalLink } from 'lucide-react';
 import Layout from './Layout';
 
 interface SuccessScreenProps {
   onReset: () => void;
+  bitrixDealId: string | null;
 }
 
-export default function SuccessScreen({ onReset }: SuccessScreenProps) {
-  const protocolNumber = `BACT-${Date.now().toString().slice(-6)}`;
+export default function SuccessScreen({ onReset, bitrixDealId }: SuccessScreenProps) {
+  const bitrixCardUrl = bitrixDealId
+    ? `https://eunaeuropacidadania.bitrix24.com.br/crm/type/1132/details/${bitrixDealId}/`
+    : '#';
 
   return (
     <Layout>
@@ -16,25 +19,27 @@ export default function SuccessScreen({ onReset }: SuccessScreenProps) {
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
             <div className="mb-6">
               <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
-              <h3 className="text-2xl font-light text-slate-900 mb-2">Documento Enviado!</h3>
+              <h3 className="text-2xl font-light text-slate-900 mb-2">Envio Concluído!</h3>
               <p className="text-slate-600">
-                Seu documento foi recebido com sucesso e está sendo processado.
+                Seu documento foi recebido e o card foi criado no Bitrix24.
               </p>
             </div>
 
-            <div className="bg-slate-50 rounded-lg p-4 mb-6">
-              <div className="flex items-center justify-center space-x-2 mb-2">
-                <FileText className="w-4 h-4 text-slate-500" />
-                <span className="text-sm font-medium text-slate-700">Número do Protocolo</span>
+            {bitrixDealId && (
+              <div className="bg-slate-50 rounded-lg p-4 mb-6">
+                <a
+                  href={bitrixCardUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 font-medium group"
+                >
+                  <div className="flex items-center justify-center space-x-2">
+                    <ExternalLink className="w-5 h-5" />
+                    <span>Ver Card Criado no Bitrix24</span>
+                  </div>
+                </a>
               </div>
-              <p className="text-xl font-bold text-slate-900 font-mono">{protocolNumber}</p>
-            </div>
-
-            <div className="text-sm text-slate-600 mb-6 space-y-2">
-              <p>• Guarde este número para acompanhar o status</p>
-              <p>• Prazo estimado: 3-5 dias úteis</p>
-              <p>• Você será notificado quando estiver pronto</p>
-            </div>
+            )}
 
             <button
               onClick={onReset}

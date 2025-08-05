@@ -1,16 +1,9 @@
 import multer from 'multer';
 
 export class FileUploadMiddleware {
-  private static readonly ALLOWED_MIME_TYPES = [
-    'application/pdf',
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  ];
-
-  private static readonly MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  private static readonly ALLOWED_MIME_TYPES = ['application/pdf'];
+  private static readonly MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
+  static readonly MAX_FILES = 10;
 
   static create() {
     const storage = multer.memoryStorage();
@@ -18,23 +11,18 @@ export class FileUploadMiddleware {
     return multer({
       storage: storage,
       limits: {
-        fileSize: this.MAX_FILE_SIZE
+        fileSize: this.MAX_FILE_SIZE,
+        files: this.MAX_FILES,
       },
-      fileFilter: this.validateFile
+      fileFilter: this.validateFile.bind(this),
     });
   }
 
   private static validateFile(req: any, file: Express.Multer.File, callback: multer.FileFilterCallback): void {
-    if (!file) {
-      callback(new Error('Arquivo é obrigatório'));
-      return;
-    }
-
     if (!this.ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      callback(new Error('Tipo de arquivo não permitido'));
+      callback(new Error('Tipo de arquivo não permitido. Apenas PDFs são aceitos.'));
       return;
     }
-
     callback(null, true);
   }
 }

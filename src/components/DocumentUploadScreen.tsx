@@ -1,293 +1,178 @@
-import React, { useState } from 'react';
-import { Upload, FileText, ArrowRight, ArrowLeft, User, Users, Building } from 'lucide-react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { Upload, ArrowRight, ArrowLeft, User, Users, X, Paperclip, Loader2 } from 'lucide-react';
+import { useDropzone } from 'react-dropzone';
 import Layout from './Layout';
-import { DocumentSubmission, DOCUMENT_TYPES, SUBMISSION_TYPES } from '../types';
+import { DocumentSubmission, SubmissionType, LocationType, REQUERENTE_DOCUMENT_TYPES, FAMILIA_DOCUMENT_TYPES } from '../types';
+import axios from 'axios';
+import { isUUID } from 'class-validator';
+
+interface FamilyMember {
+  id: string;
+  name: string;
+}
 
 interface DocumentUploadScreenProps {
-  location: 'carrao' | 'alphaville';
+  location: LocationType;
   onNext: (data: DocumentSubmission) => void;
   onBack: () => void;
 }
 
 export default function DocumentUploadScreen({ location, onNext, onBack }: DocumentUploadScreenProps) {
-  const [formData, setFormData] = useState<DocumentSubmission>({
-    location,
-    submissionType: 'certidao',
-    familyId: '',
-    applicantId: '',
-    requesterName: '',
-    familyName: '',
-    documentType: 'birth',
-    file: null
+  const [submissionType, setSubmissionType] = useState<SubmissionType>('requerente');
+  const [formData, setFormData] = useState<Omit<DocumentSubmission, 'location' | 'submissionType'>>({
+    nomeRequerente: '',
+    idRequerente: '',
+    nomeFamilia: '',
+    idFamilia: '',
+    documentType: REQUERENTE_DOCUMENT_TYPES[0],
+    files: [],
   });
-  const [dragActive, setDragActive] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  const [isFetchingMembers, setIsFetchingMembers] = useState(false);
 
-  const handleInputChange = (field: keyof DocumentSubmission, value: string) => {
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    setFormData(prev => ({ ...prev, files: [...prev.files, ...acceptedFiles] }));
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: { 'application/pdf': ['.pdf'] },
+  });
+
+  const handleInputChange = (field: keyof typeof formData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleFileChange = (file: File | null) => {
-    setFormData(prev => ({ ...prev, file }));
+  const handleApplicantChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedId = e.target.value;
+    const selectedMember = familyMembers.find(m => m.id === selectedId);
+    setFormData(prev => ({ ...prev, idRequerente: selectedId, nomeRequerente: selectedMember?.name || '' }));
   };
 
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  };
+  useEffect(() => {
+    const fetchFamilyMembers = async () => {
+      if (submissionType === 'requerente' && formData.idFamilia && isUUID(formData.idFamilia)) {
+        setIsFetchingMembers(true);
+        setError(null);
+        try {
+          const { data } = await axios.get(`http://localhost:3333/api/auth/family-members/${formData.idFamilia}`);
+          setFamilyMembers(data.success ? data.members : []);
+          if (data.success && data.members.length > 0) {
+            setFormData(prev => ({ ...prev, idRequerente: data.members[0].id, nomeRequerente: data.members[0].name }));
+          }
+        } catch (err: any) {
+          setError(err.response?.data?.message || 'Erro ao buscar membros.');
+          setFamilyMembers([]);
+        } finally {
+          setIsFetchingMembers(false);
+        }
+      } else {
+        setFamilyMembers([]);
+      }
+    };
+    const timer = setTimeout(fetchFamilyMembers, 500);
+    return () => clearTimeout(timer);
+  }, [formData.idFamilia, submissionType]);
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileChange(e.dataTransfer.files[0]);
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isFormValid()) {
-      onNext(formData);
-    }
+  const removeFile = (fileToRemove: File) => {
+    setFormData(prev => ({ ...prev, files: prev.files.filter(file => file !== fileToRemove) }));
   };
 
   const isFormValid = () => {
-    if (!formData.file) return false;
-    
-    switch (formData.submissionType) {
-      case 'certidao':
-        if (location === 'alphaville') {
-          return formData.familyId?.trim() && formData.applicantId?.trim();
-        }
-        return true; // Carrão não precisa de validação
-      case 'requerente':
-        return formData.requesterName?.trim();
-      case 'familia':
-        return formData.familyId?.trim() && formData.familyName?.trim();
-      default:
-        return false;
-    }
+    const { files, nomeFamilia, idFamilia, idRequerente } = formData;
+    if (files.length === 0 || !nomeFamilia?.trim() || !idFamilia?.trim()) return false;
+    if (submissionType === 'requerente' && !idRequerente?.trim()) return false;
+    return true;
   };
 
-  const renderFormFields = () => {
-    switch (formData.submissionType) {
-      case 'certidao':
-        if (location === 'carrao') {
-          return (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-blue-800 text-sm">
-                <strong>Carrão:</strong> Processo simplificado - apenas upload do documento necessário.
-              </p>
-            </div>
-          );
-        }
-        return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="familyId" className="block text-sm font-medium text-slate-700 mb-2">
-                ID da Família *
-              </label>
-              <input
-                id="familyId"
-                type="text"
-                value={formData.familyId}
-                onChange={(e) => handleInputChange('familyId', e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-slate-900 placeholder-slate-400"
-                placeholder="Digite o ID da família"
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="applicantId" className="block text-sm font-medium text-slate-700 mb-2">
-                ID do Requerente *
-              </label>
-              <input
-                id="applicantId"
-                type="text"
-                value={formData.applicantId}
-                onChange={(e) => handleInputChange('applicantId', e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-slate-900 placeholder-slate-400"
-                placeholder="Digite o ID do requerente"
-                required
-              />
-            </div>
-          </div>
-        );
-      
-      case 'requerente':
-        return (
-          <div>
-            <label htmlFor="requesterName" className="block text-sm font-medium text-slate-700 mb-2">
-              Nome do Requerente *
-            </label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-              <input
-                id="requesterName"
-                type="text"
-                value={formData.requesterName}
-                onChange={(e) => handleInputChange('requesterName', e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-slate-900 placeholder-slate-400"
-                placeholder="Digite o nome completo do requerente"
-                required
-              />
-            </div>
-          </div>
-        );
-      
-      case 'familia':
-        return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="familyId" className="block text-sm font-medium text-slate-700 mb-2">
-                ID da Família *
-              </label>
-              <input
-                id="familyId"
-                type="text"
-                value={formData.familyId}
-                onChange={(e) => handleInputChange('familyId', e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-slate-900 placeholder-slate-400"
-                placeholder="Digite o ID da família"
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="familyName" className="block text-sm font-medium text-slate-700 mb-2">
-                Nome da Família *
-              </label>
-              <div className="relative">
-                <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  id="familyName"
-                  type="text"
-                  value={formData.familyName}
-                  onChange={(e) => handleInputChange('familyName', e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-slate-900 placeholder-slate-400"
-                  placeholder="Digite o nome da família"
-                  required
-                />
-              </div>
-            </div>
-          </div>
-        );
-      
-      default:
-        return null;
+  const validateAndSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!isFormValid()) {
+      setError('Preencha os campos obrigatórios e envie ao menos um arquivo.');
+      return;
     }
+    setIsValidating(true);
+    try {
+      // Sua lógica de validação com a Edge Function aqui...
+      console.log('Validando IDs...');
+    } catch (err) {
+      // Tratar erro
+    } finally {
+      setIsValidating(false);
+    }
+    onNext({ ...formData, submissionType, location });
   };
+  
+  const documentTypes = submissionType === 'requerente' ? REQUERENTE_DOCUMENT_TYPES : FAMILIA_DOCUMENT_TYPES;
 
   return (
-    <Layout title={`Envio de Documentos - ${location === 'carrao' ? 'Carrão' : 'Alphaville'}`}>
-      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
-        <form onSubmit={handleSubmit} className="space-y-8">
+    <Layout title={`Envio de Documentos - ${location.charAt(0).toUpperCase() + location.slice(1)}`}>
+      <div className="bg-white rounded-2xl shadow-xl p-8">
+        <form onSubmit={validateAndSubmit} className="space-y-8">
           <div>
-            <label htmlFor="submissionType" className="block text-sm font-medium text-slate-700 mb-2">
-              Tipo de Envio
-            </label>
-            <select
-              id="submissionType"
-              value={formData.submissionType}
-              onChange={(e) => handleInputChange('submissionType', e.target.value)}
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-slate-900 bg-white"
-            >
-              {SUBMISSION_TYPES.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {renderFormFields()}
-
-          <div>
-            <label htmlFor="documentType" className="block text-sm font-medium text-slate-700 mb-2">
-              Tipo de Documento
-            </label>
-            <select
-              id="documentType"
-              value={formData.documentType}
-              onChange={(e) => handleInputChange('documentType', e.target.value)}
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-slate-900 bg-white"
-            >
-              {DOCUMENT_TYPES.map((type) => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Upload de Documento *
-            </label>
-            <div
-              className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200 ${
-                dragActive
-                  ? 'border-blue-500 bg-blue-50'
-                  : formData.file
-                  ? 'border-green-500 bg-green-50'
-                  : 'border-slate-300 hover:border-slate-400'
-              }`}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-            >
-              <input
-                type="file"
-                onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                accept="image/*,.pdf"
-              />
-              
-              {formData.file ? (
-                <div className="space-y-2">
-                  <FileText className="w-12 h-12 text-green-600 mx-auto" />
-                  <p className="text-green-700 font-medium">{formData.file.name}</p>
-                  <p className="text-sm text-green-600">
-                    {(formData.file.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Upload className="w-12 h-12 text-slate-400 mx-auto" />
-                  <p className="text-slate-600">
-                    Arraste e solte seu arquivo aqui ou <span className="text-blue-600 font-medium">clique para selecionar</span>
-                  </p>
-                  <p className="text-sm text-slate-500">
-                    Formatos aceitos: PDF, JPG, PNG (máx. 10MB)
-                  </p>
-                </div>
-              )}
+            <label className="block text-sm font-medium mb-2">Tipo de Envio</label>
+            <div className="flex gap-4">
+              <button type="button" onClick={() => setSubmissionType('requerente')} className={`flex-1 p-4 rounded-lg border-2 text-center ${submissionType === 'requerente' ? 'border-blue-500 bg-blue-50' : 'hover:border-slate-300'}`}><User className="mx-auto mb-1" />Requerente</button>
+              <button type="button" onClick={() => setSubmissionType('familia')} className={`flex-1 p-4 rounded-lg border-2 text-center ${submissionType === 'familia' ? 'border-blue-500 bg-blue-50' : 'hover:border-slate-300'}`}><Users className="mx-auto mb-1" />Família</button>
             </div>
           </div>
+          
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label htmlFor="idFamilia" className="block text-sm font-medium mb-2">ID da Família *</label>
+                <input id="idFamilia" type="text" value={formData.idFamilia || ''} onChange={(e) => handleInputChange('idFamilia', e.target.value)} className="w-full p-3 border rounded-lg" placeholder="Cole o ID da Família" />
+              </div>
+              <div>
+                <label htmlFor="nomeFamilia" className="block text-sm font-medium mb-2">Nome da Família *</label>
+                <input id="nomeFamilia" type="text" value={formData.nomeFamilia || ''} onChange={(e) => handleInputChange('nomeFamilia', e.target.value)} className="w-full p-3 border rounded-lg" placeholder="Digite o nome da família" />
+              </div>
+            </div>
+            {submissionType === 'requerente' && (
+              <div>
+                <label htmlFor="requerente" className="block text-sm font-medium mb-2">Selecione o Requerente *</label>
+                <select id="requerente" value={formData.idRequerente || ''} onChange={handleApplicantChange} className="w-full p-3 border rounded-lg bg-white" disabled={isFetchingMembers || familyMembers.length === 0}>
+                  {isFetchingMembers ? <option>Buscando...</option> : familyMembers.length > 0 ? familyMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>) : <option>Nenhum membro encontrado</option>}
+                </select>
+              </div>
+            )}
+          </div>
+          
+          <div>
+            <label htmlFor="documentType" className="block text-sm font-medium mb-2">Tipo de Documento</label>
+            <select id="documentType" value={formData.documentType} onChange={(e) => handleInputChange('documentType', e.target.value)} className="w-full p-3 border rounded-lg bg-white">
+              {documentTypes.map(type => <option key={type} value={type}>{type}</option>)}
+            </select>
+          </div>
 
-          <div className="flex items-center justify-between pt-6 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={onBack}
-              className="flex items-center space-x-2 px-6 py-3 text-slate-600 hover:text-slate-800 transition-colors duration-200"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Voltar</span>
-            </button>
+          <div>
+            <label className="block text-sm font-medium mb-2">Upload de Documentos (PDF) *</label>
+            <div {...getRootProps()} className={`relative border-2 border-dashed rounded-lg p-8 text-center cursor-pointer ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-slate-300'}`}>
+              <input {...getInputProps()} />
+              <Upload className="w-10 h-10 mx-auto text-slate-400 mb-2" />
+              <p>Arraste arquivos ou <span className="text-blue-600">clique para selecionar</span></p>
+            </div>
+            {formData.files.length > 0 && (
+              <ul className="mt-4 space-y-2">
+                {formData.files.map((file, i) => (
+                  <li key={i} className="flex items-center justify-between bg-slate-100 p-2 rounded-lg">
+                    <div className="flex items-center gap-2"><Paperclip className="w-5 h-5" /><span>{file.name}</span></div>
+                    <button type="button" onClick={() => removeFile(file)}><X className="w-5 h-5 text-red-500" /></button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
-            <button
-              type="submit"
-              disabled={!isFormValid()}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-medium py-3 px-6 rounded-lg transition-all duration-200 flex items-center space-x-2 group"
-            >
-              <span>Continuar</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" />
+          {error && <div className="bg-red-100 text-red-700 p-3 rounded-lg">{error}</div>}
+
+          <div className="flex items-center justify-between pt-6 border-t">
+            <button type="button" onClick={onBack} className="flex items-center gap-2 px-4 py-2"><ArrowLeft/> Voltar</button>
+            <button type="submit" disabled={!isFormValid() || isValidating} className="bg-blue-600 text-white p-3 rounded-lg flex items-center gap-2 disabled:bg-slate-400">
+              {isValidating ? <><Loader2 className="animate-spin" /> Validando...</> : <><ArrowRight/> Continuar</>}
             </button>
           </div>
         </form>

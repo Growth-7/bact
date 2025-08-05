@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,7 +5,7 @@ generator client {
 datasource db {
   provider          = "postgresql"
   url               = env("DATABASE_URL")
-  shadowDatabaseUrl = env("SHADOW_DATABASE_URL") // Required for migrations
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 model User {
@@ -21,25 +18,23 @@ model User {
 }
 
 model Submission {
-  id             String            @id @default(cuid())
-  location       String
-  submissionType String
-  documentType   String
-  fileUrl        String
-  fileType       String
-  bitrixDealId   String?
-  status         String            @default("Pending")
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  user           User              @relation(fields: [userId], references: [id])
-  userId         String
-  fields         SubmissionField[]
-}
-
-model SubmissionField {
-  id           String     @id @default(cuid())
-  key          String
-  value        String
-  submission   Submission @relation(fields: [submissionId], references: [id])
-  submissionId String
+  id              String   @id @default(cuid())
+  location        String
+  submissionType  String
+  documentType    String
+  
+  nomeFamilia     String
+  idFamilia       String
+  nomeRequerente  String?
+  idRequerente    String?
+  
+  fileUrls        String[]
+  bitrixDealId    String?
+  status          String   @default("Pending")
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  user            User     @relation(fields: [userId], references: [id])
+  userId          String
 }

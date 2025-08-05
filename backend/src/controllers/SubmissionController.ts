@@ -1,194 +1,213 @@
-import { Request, Response } from 'express';
-import { DatabaseService } from '../services/DatabaseService';
-import { GoogleDriveService, GoogleDriveFileData } from '../services/GoogleDriveService';
-import { BitrixService } from '../services/BitrixService';
-import { BitrixDealData } from '../services/BitrixDealData';
-import { SubmissionData } from '../models/SubmissionData';
+import type { Request, Response } from 'express';
+const { google } = require('googleapis');
+const axios = require('axios');
+const { PrismaClient } = require('@prisma/client');
+const stream = require('stream');
 
-export class SubmissionController {
-  private readonly databaseService: DatabaseService;
-  private readonly googleDriveService: GoogleDriveService;
-  private readonly bitrixService: BitrixService;
+const prisma = new PrismaClient();
 
-  constructor() {
-    this.databaseService = new DatabaseService();
-    this.googleDriveService = new GoogleDriveService();
+// Garante que todas as credenciais necessárias estão presentes
+const driveCredentials = {
+  type: process.env.GOOGLE_SERVICE_ACCOUNT_TYPE || '',
+  project_id: process.env.GOOGLE_SERVICE_ACCOUNT_PROJECT_ID || '',
+  private_key_id: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_ID || '',
+  private_key: (process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+  client_email: process.env.GOOGLE_SERVICE_ACCOUNT_CLIENT_EMAIL || '',
+  client_id: process.env.GOOGLE_SERVICE_ACCOUNT_CLIENT_ID || '',
+  auth_uri: process.env.GOOGLE_SERVICE_ACCOUNT_AUTH_URI || '',
+  token_uri: process.env.GOOGLE_SERVICE_ACCOUNT_TOKEN_URI || '',
+  auth_provider_x509_cert_url: process.env.GOOGLE_SERVICE_ACCOUNT_AUTH_PROVIDER_X509_CERT_URL || '',
+  client_x509_cert_url: process.env.GOOGLE_SERVICE_ACCOUNT_CLIENT_X509_CERT_URL || '',
+};
+
+const auth = new google.auth.GoogleAuth({
+  credentials: driveCredentials,
+  scopes: ['https://www.googleapis.com/auth/drive'],
+});
+const drive = google.drive({ version: 'v3', auth });
+const PARENT_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
+
+async function getOrCreateFolder(name: string, parentId: string): Promise<string> {
+  const query = `mimeType='application/vnd.google-apps.folder' and name='${name}' and '${parentId}' in parents and trashed=false`;
+  const { data } = await drive.files.list({ q: query, fields: 'files(id)', supportsAllDrives: true, includeItemsFromAllDrives: true });
+  if (data.files && data.files.length > 0) {
+    return data.files[0]?.id || '';
+  }
+  const fileMetadata = { name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] };
+  const { data: newFolder } = await drive.files.create({
+    requestBody: fileMetadata,
+    fields: 'id',
+    supportsAllDrives: true,
+  });
+  return newFolder.id!;
+}
+
+function bufferToBase64(buffer: Buffer): string {
+  return buffer.toString('base64');
+}
+
+const handleSubmission = async (req: Request, res: Response) => {
+  try {
+    const { location, submissionType, documentType, nomeFamilia, idFamilia, nomeRequerente, idRequerente, userId, bitrixUserId } = req.body;
     
-    const bitrixWebhookUrl = process.env.BITRIX24_WEBHOOK_URL || 
-      'https://eunaeuropacidadania.bitrix24.com.br/rest/10/ss2ea4l539tlv1fv/';
-    this.bitrixService = new BitrixService(bitrixWebhookUrl);
-  }
-
-  async handleSubmission(req: Request, res: Response): Promise<void> {
-    try {
-      const requestData = this.extractRequestData(req);
-      const uploadedFile = this.extractUploadedFile(req);
-      
-      const userId = await this.ensureUserExists(requestData.username);
-      
-      const googleDriveResult = await this.uploadToGoogleDrive(uploadedFile);
-      
-      const submissionData = this.createSubmissionData(requestData, googleDriveResult.getWebViewLink());
-      
-      const databaseResult = await this.databaseService.createSubmission(userId, submissionData);
-      
-      const bitrixResult = await this.createBitrixDeal(submissionData);
-      
-      await this.databaseService.updateSubmissionBitrixId(
-        databaseResult.getSubmissionId(),
-        bitrixResult.getDealId()
-      );
-
-      await this.databaseService.updateSubmissionStatus(
-        databaseResult.getSubmissionId(),
-        'Processed'
-      );
-
-      this.sendSuccessResponse(res, {
-        submissionId: databaseResult.getSubmissionId(),
-        bitrixDealId: bitrixResult.getDealId(),
-        fileUrl: googleDriveResult.getWebViewLink()
-      });
-
-    } catch (error) {
-      this.sendErrorResponse(res, error);
-    }
-  }
-
-  async getSubmissionsByUser(req: Request, res: Response): Promise<void> {
-    try {
-      const { userId } = req.params;
-      
+    // Validate userId
       if (!userId) {
-        this.sendBadRequestResponse(res, 'ID do usuário é obrigatório');
-        return;
-      }
-
-      const submissions = await this.databaseService.findSubmissionsByUserId(userId);
-      
-      res.json({
-        success: true,
-        data: submissions
-      });
-
-    } catch (error) {
-      this.sendErrorResponse(res, error);
+      return res.status(400).json({ success: false, message: 'ID do usuário é obrigatório.' });
     }
-  }
 
-  async getSubmissionById(req: Request, res: Response): Promise<void> {
-    try {
-      const { submissionId } = req.params;
-      
-      if (!submissionId) {
-        this.sendBadRequestResponse(res, 'ID da submissão é obrigatório');
-        return;
-      }
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
 
-      const submission = await this.databaseService.findSubmissionById(submissionId);
-      
-      if (!submission) {
-        this.sendNotFoundResponse(res, 'Submissão não encontrada');
-        return;
-      }
-
-      res.json({
-        success: true,
-        data: submission
-      });
-
-    } catch (error) {
-      this.sendErrorResponse(res, error);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
     }
-  }
 
-  private extractRequestData(req: Request): any {
-    return {
-      username: req.body.username,
-      location: req.body.location,
-      submissionType: req.body.submissionType,
-      documentType: req.body.documentType,
-      customFields: JSON.parse(req.body.customFields || '{}')
+    const files = req.files as Express.Multer.File[];
+    if (!files || files.length === 0) {
+      return res.status(400).json({ success: false, message: 'Nenhum arquivo enviado.' });
+    }
+
+    // --- Validação de Variáveis de Ambiente ---
+    const BITRIX_WEBHOOK_URL = process.env.BITRIX_WEBHOOK_URL;
+    if (!BITRIX_WEBHOOK_URL) {
+      console.error("ERRO: A variável de ambiente BITRIX_WEBHOOK_URL não está definida.");
+      return res.status(500).json({ success: false, message: 'Erro de configuração do servidor: Webhook do Bitrix24 não encontrado.' });
+    }
+
+    const familiaFolderId = idFamilia ? await getOrCreateFolder(idFamilia, PARENT_FOLDER_ID) : PARENT_FOLDER_ID;
+    const targetFolderId = submissionType === 'requerente' && idRequerente ? await getOrCreateFolder(idRequerente, familiaFolderId) : familiaFolderId;
+
+    const uploadedFileUrls: string[] = [];
+    const bitrixFiles: { filename: string; data: string }[] = [];
+
+    for (const file of files) {
+      const bufferStream = new stream.PassThrough();
+      bufferStream.end(file.buffer);
+      const { data: uploadedFile } = await drive.files.create({
+        requestBody: { name: file.originalname, parents: [targetFolderId] },
+        media: { mimeType: file.mimetype, body: bufferStream },
+        fields: 'webViewLink',
+        supportsAllDrives: true,
+      });
+      if (uploadedFile.webViewLink) {
+        uploadedFileUrls.push(uploadedFile.webViewLink);
+      }
+      bitrixFiles.push({ filename: file.originalname, data: bufferToBase64(file.buffer) });
+    }
+
+    const bitrixDealTitle = `${documentType} - ${nomeFamilia || nomeRequerente}`;
+    // Validação dos campos obrigatórios
+    if (!bitrixUserId) {
+      throw new Error('ID do usuário do Bitrix24 é obrigatório');
+    }
+
+    if (!idFamilia) {
+      throw new Error('ID da família é obrigatório');
+    }
+
+    // Verifica se há arquivos convertidos
+    if (!bitrixFiles.length) {
+      throw new Error('Nenhum arquivo foi processado corretamente');
+    }
+
+    // Verifica se há URLs do Drive
+    if (!uploadedFileUrls.length) {
+      throw new Error('Nenhum arquivo foi enviado para o Google Drive');
+    }
+
+    // Log dos dados antes do envio
+    console.log('Dados a serem enviados para o Bitrix24:', {
+      idFamilia,
+      idRequerente,
+      bitrixUserId,
+      uploadedFileUrls,
+      bitrixFiles: bitrixFiles.length
+    });
+
+    // Prepara os dados com aspas duplas
+    const bitrixData = {
+      entityTypeId: 1132,
+      fields: {
+        title: bitrixDealTitle,
+        // String type
+        ufCrm48IdFamilia: String(idFamilia || ""),
+        // String type
+        ufCrm48IdRequerente: String(idRequerente || ""),
+        // URL type, multiple
+        ufCrm48LinkDrive: uploadedFileUrls,
+        // Employee type
+        ufCrm48IdUsuario: Number(bitrixUserId),
+        // File type, multiple - formato específico do Bitrix24 para arquivos
+        // Formato correto para múltiplos arquivos: [["nome_arquivo", "conteudo_base64"], ...]
+        ufCrm48DocumentoScaneado: bitrixFiles.map(file => [
+          file.filename,  // nome do arquivo
+          file.data      // conteúdo em base64
+        ])
+      }
     };
-  }
 
-  private extractUploadedFile(req: Request): any {
-    if (!req.file) {
-      throw new Error('Arquivo é obrigatório');
-    }
-    return req.file;
-  }
+    // Log da requisição para o Bitrix24
+    console.log('Requisição para o Bitrix24:', {
+      url: `${BITRIX_WEBHOOK_URL}crm.item.add.json`,
+      entityTypeId: bitrixData.entityTypeId,
+      fields: {
+        ...bitrixData.fields,
+        ufCrm48DocumentoScaneado: bitrixFiles.map(file => ({
+          name: file.filename,
+          size: Buffer.from(file.data, "base64").length + " bytes",
+          format: "[nome_arquivo, conteudo_base64]"
+        })),
+        ufCrm48LinkDrive: uploadedFileUrls
+      }
+    });
 
-  private async ensureUserExists(username: string): Promise<string> {
-    if (!username) {
-      throw new Error('Nome de usuário é obrigatório');
-    }
-    return await this.databaseService.createUser(username);
-  }
-
-  private async uploadToGoogleDrive(file: any): Promise<any> {
-    const fileData = new GoogleDriveFileData(
-      file.originalname,
-      file.mimetype,
-      file.buffer
-    );
+    // Faz a requisição para o Bitrix24
+    const bitrixResponse = await axios.post(`${BITRIX_WEBHOOK_URL}crm.item.add.json`, bitrixData);
     
-    return await this.googleDriveService.uploadFile(fileData);
-  }
+    // Log da resposta do Bitrix24
+    console.log('Resposta do Bitrix24:', {
+      status: bitrixResponse.status,
+      data: bitrixResponse.data
+    });
 
-  private createSubmissionData(requestData: any, fileUrl: string): SubmissionData {
-    const submissionData = new SubmissionData(
-      requestData.location,
-      requestData.submissionType,
-      requestData.documentType,
-      fileUrl,
-      'file' // file type placeholder
-    );
+    const bitrixDealId = bitrixResponse.data.result.item.id;
 
-    for (const [key, value] of Object.entries(requestData.customFields)) {
-      submissionData.addCustomField(key, value as string);
-    }
+    const submission = await prisma.submission.create({
+      data: {
+        location,
+        submissionType,
+        documentType: documentType || '',
+        nomeFamilia: nomeFamilia || '',
+        idFamilia: idFamilia || '',
+        nomeRequerente,
+        idRequerente,
+        fileUrls: uploadedFileUrls,
+        bitrixDealId: bitrixDealId.toString(),
+        userId,
+      },
+    });
 
-    return submissionData;
-  }
-
-  private async createBitrixDeal(submissionData: SubmissionData): Promise<any> {
-    const dealTitle = `${submissionData.getDocumentType()} - ${submissionData.getLocation()}`;
-    const dealComments = `Submissão de documento: ${submissionData.getSubmissionType()}`;
-    
-    const dealData = new BitrixDealData(dealTitle, dealComments, submissionData.getCustomFields());
-    
-    return await this.bitrixService.createDeal(dealData);
-  }
-
-  private sendSuccessResponse(res: Response, data: any): void {
     res.status(201).json({
       success: true,
-      message: 'Submissão processada com sucesso',
-      data: data
+      message: 'Submissão processada com sucesso!',
+      submissionId: submission.id,
+      bitrixDealId,
+      driveLinks: uploadedFileUrls,
     });
+  } catch (error) {
+    console.error('Erro detalhado na submissão:', error);
+    let errorMessage = 'Erro desconhecido';
+    if (axios.isAxiosError(error)) {
+      errorMessage = error.response?.data || error.message;
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    }
+    res.status(500).json({ success: false, message: 'Erro interno do servidor.', error: errorMessage });
   }
+};
 
-  private sendErrorResponse(res: Response, error: any): void {
-    console.error('Erro na submissão:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erro interno do servidor',
-      error: error.message
-    });
-  }
-
-  private sendBadRequestResponse(res: Response, message: string): void {
-    res.status(400).json({
-      success: false,
-      message: message
-    });
-  }
-
-  private sendNotFoundResponse(res: Response, message: string): void {
-    res.status(404).json({
-      success: false,
-      message: message
-    });
-  }
-}
+module.exports = { handleSubmission };

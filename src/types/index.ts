@@ -1,44 +1,42 @@
 export interface User {
   id: string;
   username: string;
+  user_id_bitrix24: string;
 }
+
+export type SubmissionType = 'requerente' | 'familia';
+
+export type LocationType = 'carrao' | 'alphaville';
+
+export const REQUERENTE_DOCUMENT_TYPES = [
+  'Certidão de Nascimento',
+  'Certidão de Casamento',
+  'Certidão de Óbito',
+  'Outro',
+] as const;
+
+export const FAMILIA_DOCUMENT_TYPES = [
+  'Certidão do Italiano',
+  'CNN',
+  'Procuração',
+] as const;
+
+export type RequerenteDocumentType = typeof REQUERENTE_DOCUMENT_TYPES[number];
+export type FamiliaDocumentType = typeof FAMILIA_DOCUMENT_TYPES[number];
+export type DocumentType = RequerenteDocumentType | FamiliaDocumentType;
 
 export interface DocumentSubmission {
-  location: 'carrao' | 'alphaville';
-  submissionType: 'certidao' | 'requerente' | 'familia';
+  location: LocationType;
+  submissionType: SubmissionType;
   
-  // Campos para certidão
-  familyId?: string;
-  applicantId?: string;
+  // Campos para Requerente
+  nomeRequerente?: string;
+  idRequerente?: string;
+
+  // Campos compartilhados ou de Família
+  nomeFamilia?: string;
+  idFamilia?: string;
   
-  // Campos para requerente
-  requesterName?: string;
-  
-  // Campos para família
-  familyName?: string;
-  
-  documentType: 'birth' | 'marriage' | 'death';
-  file: File | null;
+  documentType?: DocumentType;
+  files: File[];
 }
-
-export type DocumentType = {
-  value: 'birth' | 'marriage' | 'death';
-  label: string;
-};
-
-export const DOCUMENT_TYPES: DocumentType[] = [
-  { value: 'birth', label: 'Certidão de Nascimento' },
-  { value: 'marriage', label: 'Certidão de Casamento' },
-  { value: 'death', label: 'Certidão de Óbito' }
-];
-
-export type SubmissionType = {
-  value: 'certidao' | 'requerente' | 'familia';
-  label: string;
-};
-
-export const SUBMISSION_TYPES: SubmissionType[] = [
-  { value: 'certidao', label: 'Envio de Certidão' },
-  { value: 'requerente', label: 'Requerente' },
-  { value: 'familia', label: 'Família' }
-];

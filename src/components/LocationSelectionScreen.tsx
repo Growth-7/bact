@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { MapPin, Building2, ArrowRight } from 'lucide-react';
 import Layout from './Layout';
 
