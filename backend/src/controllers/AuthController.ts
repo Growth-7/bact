@@ -12,7 +12,7 @@ export class AuthController {
     }
 
     try {
-      const prisma = DatabaseConnection.getPrismaClient();
+      const prisma = DatabaseConnection.getInstance();
 
       const existingUser = await prisma.user.findFirst({
         where: {
@@ -54,7 +54,7 @@ export class AuthController {
     }
 
     try {
-      const prisma = DatabaseConnection.getPrismaClient();
+      const prisma = DatabaseConnection.getInstance();
       const user = await prisma.user.findUnique({
         where: {
           username: username,
