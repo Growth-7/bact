@@ -1,0 +1,25 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "80:80"
+    environment:
+      - VITE_API_URL=http://backend:3333
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3333:3333"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - PORT=3333
+      # Adicione outras variáveis de ambiente do backend aqui
+      # Ex: - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+
+networks:
+  default:
+    name: bact-network
