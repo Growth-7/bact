@@ -2,12 +2,15 @@
 FROM node:20-slim AS builder
 WORKDIR /app
 
+# Instala o OpenSSL
+RUN apt-get update && apt-get install -y openssl
+
 # Copia os arquivos de configuração
 COPY package.json package-lock.json ./
 COPY prisma ./prisma/
 
-# Instala as dependências de produção
-RUN npm install --omit=dev
+# Instala todas as dependências (incluindo devDependencies)
+RUN npm install
 
 # Copia o restante do código fonte
 COPY . .
@@ -24,9 +27,15 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copia as dependências da etapa de build
-COPY --from=builder /app/node_modules ./node_modules
+# Instala o OpenSSL para o ambiente de produção
+RUN apt-get update && apt-get install -y openssl
+
+# Copia os arquivos de configuração
 COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/package-lock.json ./package-lock.json
+
+# Instala apenas as dependências de produção
+RUN npm install --omit=dev
 
 # Copia o código compilado
 COPY --from=builder /app/dist ./dist
