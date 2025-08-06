@@ -88,7 +88,10 @@ export class GoogleDriveService {
       return this.createUploadResult(response);
     } catch (error) {
       console.error('Erro detalhado do Google Drive:', error);
-      throw new Error(`Erro ao fazer upload para Google Drive: ${error.message}`);
+      if (error instanceof Error) {
+        throw new Error(`Erro ao fazer upload para Google Drive: ${error.message}`);
+      }
+      throw new Error(`Erro desconhecido ao fazer upload para Google Drive: ${error}`);
     }
   }
 
