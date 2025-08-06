@@ -57,7 +57,7 @@ export default function DocumentUploadScreen({ location, onNext, onBack }: Docum
         setIsFetchingMembers(true);
         setError(null);
         try {
-          const { data } = await axios.get(`http://localhost:3333/api/auth/family-members/${formData.idFamilia}`);
+          const { data } = await axios.get(`https://bact-ashu9q96c-velos0os-projects.vercel.app/api/auth/family-members/${formData.idFamilia}`);
           setFamilyMembers(data.success ? data.members : []);
           if (data.success && data.members.length > 0) {
             setFormData(prev => ({ ...prev, idRequerente: data.members[0].id, nomeRequerente: data.members[0].name }));

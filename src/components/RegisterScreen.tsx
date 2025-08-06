@@ -27,7 +27,7 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }: R
     setSuccessMessage(null);
 
     try {
-      const response = await fetch('http://localhost:3333/api/auth/register', {
+      const response = await fetch('https://bact-ashu9q96c-velos0os-projects.vercel.app/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

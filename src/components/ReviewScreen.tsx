@@ -43,7 +43,7 @@ export default function ReviewScreen({ data, user, onBack, onSubmit }: ReviewScr
     formData.append('bitrixUserId', user.user_id_bitrix24);
 
     try {
-      const response = await axios.post('http://localhost:3333/api/submissions', formData, {
+      const response = await axios.post('https://bact-ashu9q96c-velos0os-projects.vercel.app/api/submissions', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       if (response.data.success) {

@@ -22,7 +22,7 @@ export default function LoginScreen({ onLogin, onSwitchToRegister }: LoginScreen
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:3333/api/auth/login', {
+      const response = await fetch('https://bact-ashu9q96c-velos0os-projects.vercel.app/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
