@@ -2,15 +2,107 @@ import { type Request, type Response } from 'express';
 import { google } from 'googleapis';
 import axios from 'axios';
 import { DatabaseConnection } from '../config/DatabaseConnection.js';
+import { GoogleDriveService, GoogleDriveFileData } from '../services/GoogleDriveService.js';
 import stream from 'stream';
 
 const prisma = DatabaseConnection.getInstance();
+
+// Função para processar chave privada com tratamento robusto de escape
+function processPrivateKeyForAuth(privateKeyEnv: string): string {
+  if (!privateKeyEnv) {
+    throw new Error('A variável GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY não está definida.');
+  }
+
+  let processedKey = privateKeyEnv;
+  console.log('🔍 [SubmissionController] Processando chave privada. Tamanho:', processedKey.length);
+
+  // Remove aspas se estiverem presentes
+  if (processedKey.startsWith('"') && processedKey.endsWith('"')) {
+    processedKey = processedKey.slice(1, -1);
+    console.log('✅ [SubmissionController] Removidas aspas duplas');
+  }
+  if (processedKey.startsWith("'") && processedKey.endsWith("'")) {
+    processedKey = processedKey.slice(1, -1);
+    console.log('✅ [SubmissionController] Removidas aspas simples');
+  }
+
+  // Tenta detectar se é Base64 (comum no Coolify/Docker)
+  if (!processedKey.includes('-----BEGIN') && processedKey.length > 100 && /^[A-Za-z0-9+/=]+$/.test(processedKey)) {
+    console.log('🔍 [SubmissionController] Detectado possível formato Base64, tentando decodificar...');
+    try {
+      const decoded = Buffer.from(processedKey, 'base64').toString('utf-8');
+      if (decoded.includes('-----BEGIN PRIVATE KEY-----')) {
+        processedKey = decoded;
+        console.log('✅ [SubmissionController] Chave decodificada de Base64 com sucesso');
+      }
+    } catch (error) {
+      console.log('⚠️  [SubmissionController] Falha ao decodificar Base64, continuando...');
+    }
+  }
+
+  // Tenta diferentes formatos de escape para compatibilidade entre ambientes
+  if (processedKey.includes('\\\\n')) {
+    // Formato com escape duplo (comum em variáveis de ambiente)
+    processedKey = processedKey.replace(/\\\\n/g, '\n');
+    console.log('✅ [SubmissionController] Convertido \\\\n para quebras de linha');
+  } else if (processedKey.includes('\\n')) {
+    // Formato com escape simples
+    processedKey = processedKey.replace(/\\n/g, '\n');
+    console.log('✅ [SubmissionController] Convertido \\n para quebras de linha');
+  }
+  
+  // Se ainda não tem quebras de linha mas tem espaços, pode estar mal formatado
+  if (!processedKey.includes('\n') && processedKey.length > 100) {
+    console.log('🔍 [SubmissionController] Chave sem quebras de linha, tentando reformatar...');
+    
+    // Tenta reformatar assumindo que espaços foram usados no lugar de \n
+    if (processedKey.includes('-----BEGIN PRIVATE KEY----- ') && processedKey.includes(' -----END PRIVATE KEY-----')) {
+      console.log('✅ [SubmissionController] Detectado formato com espaços, reformatando...');
+      const parts = processedKey.split(' ');
+      let reformatted = '';
+      for (let i = 0; i < parts.length; i++) {
+        if (parts[i] === '-----BEGIN' && parts[i + 1] === 'PRIVATE' && parts[i + 2] === 'KEY-----') {
+          reformatted += '-----BEGIN PRIVATE KEY-----\n';
+          i += 2;
+        } else if (parts[i] === '-----END' && parts[i + 1] === 'PRIVATE' && parts[i + 2] === 'KEY-----') {
+          reformatted += '-----END PRIVATE KEY-----';
+          i += 2;
+        } else if (parts[i] && parts[i].length > 0) {
+          reformatted += parts[i] + '\n';
+        }
+      }
+      processedKey = reformatted;
+      console.log('✅ [SubmissionController] Chave reformatada com sucesso');
+    }
+  }
+
+  // Validação final
+  if (!processedKey.includes('-----BEGIN PRIVATE KEY-----')) {
+    console.error('❌ [SubmissionController] Chave inválida. Primeiros 100 chars:', processedKey.substring(0, 100));
+    throw new Error('Chave privada tem formato inválido. Deve começar com -----BEGIN PRIVATE KEY-----');
+  }
+
+  if (!processedKey.includes('-----END PRIVATE KEY-----')) {
+    console.error('❌ [SubmissionController] Chave inválida. Últimos 100 chars:', processedKey.substring(processedKey.length - 100));
+    throw new Error('Chave privada tem formato inválido. Deve terminar com -----END PRIVATE KEY-----');
+  }
+
+  // Remove espaços extras e normaliza quebras de linha
+  processedKey = processedKey
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .join('\n');
+
+  console.log('✅ [SubmissionController] Chave processada com sucesso. Linhas:', processedKey.split('\n').length);
+  return processedKey;
+}
 
 const driveCredentials = {
   type: process.env.GOOGLE_SERVICE_ACCOUNT_TYPE,
   project_id: process.env.GOOGLE_SERVICE_ACCOUNT_PROJECT_ID,
   private_key_id: process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_ID,
-  private_key: (process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+  private_key: processPrivateKeyForAuth(process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || ''),
   client_email: process.env.GOOGLE_SERVICE_ACCOUNT_CLIENT_EMAIL,
   client_id: process.env.GOOGLE_SERVICE_ACCOUNT_CLIENT_ID,
   auth_uri: process.env.GOOGLE_SERVICE_ACCOUNT_AUTH_URI,
