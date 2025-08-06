@@ -1,12 +1,11 @@
-import type { Request, Response } from 'express';
-const { google } = require('googleapis');
-const axios = require('axios');
-const { PrismaClient } = require('@prisma/client');
-const stream = require('stream');
+import { Request, Response } from 'express';
+import { google } from 'googleapis';
+import axios from 'axios';
+import { DatabaseConnection } from '../config/DatabaseConnection';
+import stream from 'stream';
 
-const prisma = new PrismaClient();
+const prisma = DatabaseConnection.getInstance();
 
-// Garante que todas as credenciais necessárias estão presentes
 const driveCredentials = {
   type: process.env.GOOGLE_SERVICE_ACCOUNT_TYPE || '',
   project_id: process.env.GOOGLE_SERVICE_ACCOUNT_PROJECT_ID || '',
@@ -46,7 +45,7 @@ function bufferToBase64(buffer: Buffer): string {
   return buffer.toString('base64');
 }
 
-const handleSubmission = async (req: Request, res: Response) => {
+export const handleSubmission = async (req: Request, res: Response) => {
   try {
     const { location, submissionType, documentType, nomeFamilia, idFamilia, nomeRequerente, idRequerente, userId, bitrixUserId } = req.body;
     
@@ -209,5 +208,3 @@ const handleSubmission = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: 'Erro interno do servidor.', error: errorMessage });
   }
 };
-
-module.exports = { handleSubmission };

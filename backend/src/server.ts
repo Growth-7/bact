@@ -45,7 +45,12 @@ app.use((error: any, req: express.Request, res: express.Response, next: express.
   });
 });
 
-app.listen(port, () => {
-  console.log(`🚀 Servidor BACT rodando na porta ${port}`);
-  console.log(`🔗 Health check: http://localhost:${port}/`);
-});
+// Só inicia o servidor se não estiver no ambiente Vercel
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(port, () => {
+    console.log(`🚀 Servidor BACT rodando na porta ${port}`);
+    console.log(`🔗 Health check: http://localhost:${port}/`);
+  });
+}
+
+export default app;

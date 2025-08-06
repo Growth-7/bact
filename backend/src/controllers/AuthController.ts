@@ -1,10 +1,10 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
-import { PrismaClient } from '@prisma/client';
+import { DatabaseConnection } from '../config/DatabaseConnection';
 import axios from 'axios';
 import { isUUID } from 'class-validator';
 
-const prisma = new PrismaClient();
+const prisma = DatabaseConnection.getInstance();
 
 const getValidationApiHeaders = () => {
   const VALIDATION_API_KEY = process.env.VALIDATION_SUPABASE_ANON_KEY;
@@ -49,8 +49,8 @@ export class AuthController {
     }
     try {
       const user = await prisma.user.findUnique({ where: { username } });
-      if (!user) {
-        res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
+      if (!user || !user.password) {
+        res.status(404).json({ success: false, message: 'Usuário não encontrado ou senha não configurada.' });
         return;
       }
       const isPasswordValid = await bcrypt.compare(password, user.password);
