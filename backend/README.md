@@ -143,3 +143,5 @@ curl http://localhost:3333/health/database
 - ⚠️ O arquivo `secrets.toml` deve estar no diretório raiz do projeto
 - ⚠️ Certifique-se de que a pasta do Google Drive existe e está compartilhada
 - ⚠️ Verifique se o webhook do Bitrix24 está ativo
+
+@lucas
