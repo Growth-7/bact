@@ -85,6 +85,32 @@ export class AuthController {
       return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
   }
+  
+  async validateIds(req: Request, res: Response): Promise<Response | void> {
+    const { familyId, applicantId } = req.body;
+    if (familyId && !isUUID(familyId)) {
+      return res.status(400).json({ success: false, field: 'familyId', message: 'Formato de ID da Família inválido.' });
+    }
+    if (applicantId && !isUUID(applicantId)) {
+      return res.status(400).json({ success: false, field: 'applicantId', message: 'Formato de ID do Requerente inválido.' });
+    }
+    try {
+      const { functionsUrl, headers } = getValidationApiConfig();
+      const body = { familia_id: familyId, customer_id: applicantId };
+      const { data } = await axios.post(`${functionsUrl}/validation_ids`, body, { headers });
+      
+      if (data.exists) {
+        return res.status(200).json({ success: true, message: 'IDs validados com sucesso.' });
+      } else {
+        return res.status(404).json({ success: false, message: 'ID não encontrado.' });
+      }
+    } catch (error: any) {
+      console.error('Erro na validação de IDs via Edge Function:', error.response?.data || error.message);
+      const status = error.response?.status || 500;
+      const message = error.response?.data?.error || 'Erro ao comunicar com o serviço de validação.';
+      return res.status(status).json({ success: false, error: message });
+    }
+  }
 
   async getFamilyMembers(req: Request, res: Response): Promise<Response | void> {
     const { familyId } = req.params;
