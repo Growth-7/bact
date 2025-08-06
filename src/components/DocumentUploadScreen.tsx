@@ -98,23 +98,43 @@ export default function DocumentUploadScreen({ location, onNext, onBack, initial
       setError("O nome do requerente não pode estar vazio.");
       return;
     }
+    if (!formData.idFamilia) {
+        setError("O ID da Família é necessário para adicionar um requerente.");
+        return;
+    }
     setIsAddingRequerente(true);
     setError(null);
-    try {
-      const addRequerenteUrl = 'https://immaunxeyguentkuxmcj.supabase.co/functions/v1/addRequerente';
-      const response = await axios.post(addRequerenteUrl, {
-        familyName: formData.nomeFamilia,
-        requerenteName: newRequerenteName
-      });
 
-      if (response.data && response.data.requerenteId) {
-        const newMember = { id: response.data.requerenteId, name: newRequerenteName };
+    try {
+        const supabaseUrl = import.meta.env.VITE_VALIDATION_SUPABASE_URL;
+        const anonKey = import.meta.env.VITE_VALIDATION_SUPABASE_ANON_KEY;
+        const serviceRoleKey = import.meta.env.VITE_VALIDATION_SUPABASE_SERVICE_ROLE_KEY;
+
+        const addRequerenteUrl = `${supabaseUrl}/functions/v1/addRequerente`;
+
+        const response = await axios.post(
+            addRequerenteUrl,
+            {
+                nome: newRequerenteName,
+                familia_id: formData.idFamilia,
+            },
+            {
+                headers: {
+                    'apikey': anonKey,
+                    'Authorization': `Bearer ${serviceRoleKey}`,
+                    'Content-Type': 'application/json',
+                },
+            }
+        );
+
+      if (response.data && response.data.id) {
+        const newMember = { id: response.data.id, name: newRequerenteName };
         setFamilyMembers(prev => [...prev, newMember]);
         setFormData(prev => ({ ...prev, idRequerente: newMember.id, nomeRequerente: newMember.name }));
         setShowAddRequerente(false);
         setNewRequerenteName('');
       } else {
-        throw new Error(response.data.error || 'Falha ao adicionar requerente.');
+        throw new Error(response.data.error || 'Falha ao adicionar requerente. O ID não foi retornado.');
       }
     } catch (error: any) {
       setError(error.response?.data?.error || error.message || 'Ocorreu um erro ao adicionar o requerente.');
