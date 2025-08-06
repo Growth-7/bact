@@ -3,9 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-    labels:
-      - "coolify.fqdn=https://bact.eunaapps.com"
-
+    environment:
+      - COOLIFY_FQDN=https://bact.eunaapps.com
   backend:
     build:
       context: ./backend
