@@ -1,6 +1,6 @@
-import { Request, Response } from 'express';
+import { type Request, type Response } from 'express';
 import bcrypt from 'bcrypt';
-import { DatabaseConnection } from '../config/DatabaseConnection';
+import { DatabaseConnection } from '../config/DatabaseConnection.js';
 import axios from 'axios';
 import { isUUID } from 'class-validator';
 
@@ -20,52 +20,47 @@ const getValidationApiHeaders = () => {
 };
 
 export class AuthController {
-  async register(req: Request, res: Response): Promise<void> {
+  async register(req: Request, res: Response): Promise<Response | void> {
     const { username, password, user_id_bitrix24 } = req.body;
     if (!username || !password || !user_id_bitrix24) {
-      res.status(400).json({ success: false, message: 'Todos os campos são obrigatórios.' });
-      return;
+      return res.status(400).json({ success: false, message: 'Todos os campos são obrigatórios.' });
     }
     try {
       const existingUser = await prisma.user.findFirst({ where: { OR: [{ username }, { user_id_bitrix24 }] } });
       if (existingUser) {
-        res.status(409).json({ success: false, message: 'Usuário ou ID Bitrix24 já cadastrado.' });
-        return;
+        return res.status(409).json({ success: false, message: 'Usuário ou ID Bitrix24 já cadastrado.' });
       }
       const hashedPassword = await bcrypt.hash(password, 10);
       const user = await prisma.user.create({ data: { username, password: hashedPassword, user_id_bitrix24 } });
-      res.status(201).json({ success: true, user: { id: user.id, username: user.username } });
+      return res.status(201).json({ success: true, user: { id: user.id, username: user.username } });
     } catch (error) {
       console.error('Erro no cadastro:', error);
-      res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+      return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
   }
 
-  async login(req: Request, res: Response): Promise<void> {
+  async login(req: Request, res: Response): Promise<Response | void> {
     const { username, password } = req.body;
     if (!username || !password) {
-      res.status(400).json({ success: false, message: 'Nome de usuário e senha são obrigatórios.' });
-      return;
+      return res.status(400).json({ success: false, message: 'Nome de usuário e senha são obrigatórios.' });
     }
     try {
       const user = await prisma.user.findUnique({ where: { username } });
       if (!user || !user.password) {
-        res.status(404).json({ success: false, message: 'Usuário não encontrado ou senha não configurada.' });
-        return;
+        return res.status(404).json({ success: false, message: 'Usuário não encontrado ou senha não configurada.' });
       }
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
-        res.status(401).json({ success: false, message: 'Senha incorreta.' });
-        return;
+        return res.status(401).json({ success: false, message: 'Senha incorreta.' });
       }
-      res.status(200).json({ success: true, user: { id: user.id, username: user.username, user_id_bitrix24: user.user_id_bitrix24 } });
+      return res.status(200).json({ success: true, user: { id: user.id, username: user.username, user_id_bitrix24: user.user_id_bitrix24 } });
     } catch (error) {
       console.error('Erro no login:', error);
-      res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+      return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
   }
 
-  async validateIds(req: Request, res: Response): Promise<void> {
+  async validateIds(req: Request, res: Response): Promise<Response | void> {
     const { familyId, applicantId } = req.body;
     if (familyId && !isUUID(familyId)) {
       return res.status(400).json({ success: false, field: 'familyId', message: 'Formato de ID da Família inválido.' });
@@ -79,17 +74,17 @@ export class AuthController {
       const body = { familia_id: familyId, customer_id: applicantId };
       const { data } = await axios.post(VALIDATION_FUNCTION_URL, body, { headers });
       if (data.exists) {
-        res.status(200).json({ success: true, message: 'IDs validados com sucesso.' });
+        return res.status(200).json({ success: true, message: 'IDs validados com sucesso.' });
       } else {
-        res.status(404).json({ success: false, message: 'ID não encontrado.' });
+        return res.status(404).json({ success: false, message: 'ID não encontrado.' });
       }
     } catch (error) {
       console.error('Erro na validação de IDs via Edge Function:', error);
-      res.status(500).json({ success: false, message: 'Erro ao comunicar com o serviço de validação.' });
+      return res.status(500).json({ success: false, message: 'Erro ao comunicar com o serviço de validação.' });
     }
   }
 
-  async getFamilyMembers(req: Request, res: Response): Promise<void> {
+  async getFamilyMembers(req: Request, res: Response): Promise<Response | void> {
     const { familyId } = req.params;
     if (!isUUID(familyId)) {
       return res.status(400).json({ success: false, message: 'Formato de ID da Família inválido.' });
@@ -108,10 +103,10 @@ export class AuthController {
         id: member.id,
         name: member.slug,
       }));
-      res.status(200).json({ success: true, members });
+      return res.status(200).json({ success: true, members });
     } catch (error) {
       console.error('Erro ao buscar membros da família:', error);
-      res.status(500).json({ success: false, message: 'Erro ao buscar membros da família.' });
+      return res.status(500).json({ success: false, message: 'Erro ao buscar membros da família.' });
     }
   }
 }

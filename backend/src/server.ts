@@ -1,9 +1,9 @@
-import express from 'express';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import authRoutes from './routes/AuthRoutes';
-import { handleSubmission } from './controllers/SubmissionController';
-import { FileUploadMiddleware } from './middleware/FileUploadMiddleware';
+import authRoutes from './routes/AuthRoutes.js';
+import { handleSubmission } from './controllers/SubmissionController.js';
+import { FileUploadMiddleware } from './middleware/FileUploadMiddleware.js';
 
 dotenv.config();
 
@@ -19,8 +19,8 @@ app.use(express.urlencoded({ extended: true }));
 const upload = FileUploadMiddleware.create();
 
 // Health check
-app.get('/', (req, res) => {
-  res.json({ 
+app.get('/', (req: Request, res: Response) => {
+  res.json({
     message: 'BACT Backend is running!',
     timestamp: new Date().toISOString()
   });
@@ -30,13 +30,13 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 
 app.post(
-  '/api/submissions', 
+  '/api/submissions',
   upload.array('files', FileUploadMiddleware.MAX_FILES), // Aceita múltiplos arquivos
   handleSubmission
 );
 
 // Error handling middleware
-app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((error: any, req: Request, res: Response, next: NextFunction) => {
   console.error('Erro não tratado:', error);
   res.status(500).json({
     success: false,
