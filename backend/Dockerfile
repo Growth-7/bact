@@ -37,6 +37,9 @@ COPY --from=builder /app/package-lock.json ./package-lock.json
 # Instala apenas as dependências de produção
 RUN npm install --omit=dev
 
+# Copia o cliente Prisma gerado
+COPY --from=builder /app/node_modules/.prisma/client ./node_modules/.prisma/client
+
 # Copia o código compilado
 COPY --from=builder /app/dist ./dist
 
