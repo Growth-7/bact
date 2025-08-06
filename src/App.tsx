@@ -6,30 +6,17 @@ import DocumentUploadScreen from './components/DocumentUploadScreen';
 import ReviewScreen from './components/ReviewScreen';
 import SuccessScreen from './components/SuccessScreen';
 import ForgotPasswordScreen from './components/ForgotPasswordScreen';
-import { DocumentSubmission, User, LocationType, SubmissionType, REQUERENTE_DOCUMENT_TYPES } from './types';
+import { DocumentSubmission, User } from './types';
 import { jwtDecode } from 'jwt-decode';
 
 type Screen = 'login' | 'register' | 'forgotPassword' | 'location' | 'upload' | 'review' | 'success';
-
-// Estado inicial para os dados do formulário de upload de documentos
-const initialDocumentFormData: Omit<DocumentSubmission, 'location'> = {
-  submissionType: 'requerente',
-  nomeRequerente: '',
-  idRequerente: '',
-  nomeFamilia: '',
-  idFamilia: '',
-  documentType: REQUERENTE_DOCUMENT_TYPES[0],
-  files: [],
-};
-
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('login');
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [selectedLocation, setSelectedLocation] = useState<LocationType | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<'carrao' | 'alphaville' | null>(null);
   const [documentData, setDocumentData] = useState<DocumentSubmission | null>(null);
-  const [documentFormData, setDocumentFormData] = useState(initialDocumentFormData);
   const [bitrixDealId, setBitrixDealId] = useState<string | null>(null);
 
   React.useEffect(() => {
@@ -47,6 +34,7 @@ function App() {
       setCurrentScreen('location');
     } catch (error) {
       console.error("Failed to decode token:", error);
+      // Se o token for inválido, deslogue
       handleLogout();
     }
   };
@@ -64,7 +52,6 @@ function App() {
   const handleReset = () => {
     setCurrentScreen('location');
     setDocumentData(null);
-    setDocumentFormData(initialDocumentFormData); // Limpa os dados do formulário
     setSelectedLocation(null);
     setBitrixDealId(null);
   };
@@ -75,19 +62,6 @@ function App() {
     localStorage.removeItem('authToken');
     setCurrentScreen('login');
   };
-
-  const handleBackToLocation = () => {
-    setCurrentScreen('location');
-  }
-
-  const handleBackToUpload = () => {
-    setCurrentScreen('upload');
-  }
-
-  const updateDocumentFormData = (newData: Partial<Omit<DocumentSubmission, 'location'>>) => {
-    setDocumentFormData(prev => ({ ...prev, ...newData }));
-  };
-
 
   switch (currentScreen) {
     case 'login':
@@ -100,21 +74,13 @@ function App() {
       return <LocationSelectionScreen onNext={(loc) => { setSelectedLocation(loc); setCurrentScreen('upload'); }} onBack={handleLogout} />;
     case 'upload':
       if (selectedLocation) {
-        return (
-          <DocumentUploadScreen 
-            location={selectedLocation} 
-            onNext={handleDocumentSubmit} 
-            onBack={handleBackToLocation}
-            initialData={documentFormData}
-            onDataChange={updateDocumentFormData}
-          />
-        );
+        return <DocumentUploadScreen location={selectedLocation} onNext={handleDocumentSubmit} onBack={() => setCurrentScreen('location')} />;
       }
       break;
     case 'review':
       // Garante que o usuário existe antes de renderizar
       if (documentData && user) {
-        return <ReviewScreen data={documentData} user={user} onBack={handleBackToUpload} onSubmit={handleFinalSubmit} />;
+        return <ReviewScreen data={documentData} user={user} onBack={() => setCurrentScreen('upload')} onSubmit={handleFinalSubmit} />;
       }
       break;
     case 'success':
