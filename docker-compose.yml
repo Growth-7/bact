@@ -1,5 +1,6 @@
 services:
   frontend:
+    image: bact-frontend
     build:
       context: .
       dockerfile: Dockerfile.frontend
@@ -9,6 +10,7 @@ services:
       - VITE_API_URL=http://backend:3333
 
   backend:
+    image: bact-backend
     build:
       context: ./backend
       dockerfile: Dockerfile
