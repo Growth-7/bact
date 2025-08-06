@@ -19,7 +19,3 @@ services:
       - PORT=3333
       # Adicione outras variáveis de ambiente do backend aqui
       # Ex: - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-
-networks:
-  default:
-    name: bact-network
