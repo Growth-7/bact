@@ -3,8 +3,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-    environment:
-      - COOLIFY_FQDN=https://bact.eunaapps.com
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bact-frontend-http.rule=Host(`bact.eunaapps.com`)"
+      - "traefik.http.services.bact-frontend-http.loadbalancer.server.port=80"
+
   backend:
     build:
       context: ./backend
