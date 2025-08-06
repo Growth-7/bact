@@ -15,22 +15,23 @@ interface DocumentUploadScreenProps {
   location: LocationType;
   onNext: (data: DocumentSubmission) => void;
   onBack: () => void;
+  initialData: Omit<DocumentSubmission, 'location'>;
+  onDataChange: (data: Partial<Omit<DocumentSubmission, 'location'>>) => void;
 }
 
-export default function DocumentUploadScreen({ location, onNext, onBack }: DocumentUploadScreenProps) {
-  const [submissionType, setSubmissionType] = useState<SubmissionType>('requerente');
-  const [formData, setFormData] = useState<Omit<DocumentSubmission, 'location' | 'submissionType'>>({
-    nomeRequerente: '',
-    idRequerente: '',
-    nomeFamilia: '',
-    idFamilia: '',
-    documentType: REQUERENTE_DOCUMENT_TYPES[0],
-    files: [],
-  });
+export default function DocumentUploadScreen({ location, onNext, onBack, initialData, onDataChange }: DocumentUploadScreenProps) {
+  const [formData, setFormData] = useState(initialData);
   const [error, setError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [isFetchingMembers, setIsFetchingMembers] = useState(false);
+  const [showAddRequerente, setShowAddRequerente] = useState(false);
+  const [newRequerenteName, setNewRequerenteName] = useState('');
+  const [isAddingRequerente, setIsAddingRequerente] = useState(false);
+
+  useEffect(() => {
+    onDataChange(formData);
+  }, [formData, onDataChange]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setFormData(prev => ({ ...prev, files: [...prev.files, ...acceptedFiles] }));
@@ -41,7 +42,7 @@ export default function DocumentUploadScreen({ location, onNext, onBack }: Docum
     accept: { 'application/pdf': ['.pdf'] },
   });
 
-  const handleInputChange = (field: keyof typeof formData, value: string) => {
+  const handleInputChange = (field: keyof typeof formData, value: string | SubmissionType) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -53,7 +54,7 @@ export default function DocumentUploadScreen({ location, onNext, onBack }: Docum
 
   useEffect(() => {
     const fetchFamilyMembers = async () => {
-      if (submissionType === 'requerente' && formData.idFamilia && isUUID(formData.idFamilia)) {
+      if (formData.submissionType === 'requerente' && formData.idFamilia && isUUID(formData.idFamilia)) {
         setIsFetchingMembers(true);
         setError(null);
         try {
@@ -61,7 +62,11 @@ export default function DocumentUploadScreen({ location, onNext, onBack }: Docum
           const { data } = await axios.get(`${apiUrl}/api/auth/family-members/${formData.idFamilia}`);
           setFamilyMembers(data.success ? data.members : []);
           if (data.success && data.members.length > 0) {
-            setFormData(prev => ({ ...prev, idRequerente: data.members[0].id, nomeRequerente: data.members[0].name }));
+            // Apenas define o primeiro membro se nenhum já estiver selecionado
+            if (!formData.idRequerente) {
+                const firstMember = data.members[0];
+                setFormData(prev => ({ ...prev, idRequerente: firstMember.id, nomeRequerente: firstMember.name }));
+            }
           }
         } catch (err: any) {
           setError(err.response?.data?.message || 'Erro ao buscar membros.');
@@ -75,7 +80,7 @@ export default function DocumentUploadScreen({ location, onNext, onBack }: Docum
     };
     const timer = setTimeout(fetchFamilyMembers, 500);
     return () => clearTimeout(timer);
-  }, [formData.idFamilia, submissionType]);
+  }, [formData.idFamilia, formData.submissionType]);
 
   const removeFile = (fileToRemove: File) => {
     setFormData(prev => ({ ...prev, files: prev.files.filter(file => file !== fileToRemove) }));
@@ -84,8 +89,38 @@ export default function DocumentUploadScreen({ location, onNext, onBack }: Docum
   const isFormValid = () => {
     const { files, nomeFamilia, idFamilia, idRequerente } = formData;
     if (files.length === 0 || !nomeFamilia?.trim() || !idFamilia?.trim()) return false;
-    if (submissionType === 'requerente' && !idRequerente?.trim()) return false;
+    if (formData.submissionType === 'requerente' && !idRequerente?.trim()) return false;
     return true;
+  };
+
+  const handleAddRequerente = async () => {
+    if (!newRequerenteName.trim()) {
+      setError("O nome do requerente não pode estar vazio.");
+      return;
+    }
+    setIsAddingRequerente(true);
+    setError(null);
+    try {
+      const addRequerenteUrl = 'https://immaunxeyguentkuxmcj.supabase.co/functions/v1/addRequerente';
+      const response = await axios.post(addRequerenteUrl, {
+        familyName: formData.nomeFamilia,
+        requerenteName: newRequerenteName
+      });
+
+      if (response.data && response.data.requerenteId) {
+        const newMember = { id: response.data.requerenteId, name: newRequerenteName };
+        setFamilyMembers(prev => [...prev, newMember]);
+        setFormData(prev => ({ ...prev, idRequerente: newMember.id, nomeRequerente: newMember.name }));
+        setShowAddRequerente(false);
+        setNewRequerenteName('');
+      } else {
+        throw new Error(response.data.error || 'Falha ao adicionar requerente.');
+      }
+    } catch (error: any) {
+      setError(error.response?.data?.error || error.message || 'Ocorreu um erro ao adicionar o requerente.');
+    } finally {
+      setIsAddingRequerente(false);
+    }
   };
 
   const validateAndSubmit = async (e: React.FormEvent) => {
@@ -96,18 +131,14 @@ export default function DocumentUploadScreen({ location, onNext, onBack }: Docum
       return;
     }
     setIsValidating(true);
-    try {
-      // Sua lógica de validação com a Edge Function aqui...
-      console.log('Validando IDs...');
-    } catch (err) {
-      // Tratar erro
-    } finally {
+    // Simulação de validação
+    setTimeout(() => {
       setIsValidating(false);
-    }
-    onNext({ ...formData, submissionType, location });
+      onNext({ ...formData, location });
+    }, 1000);
   };
   
-  const documentTypes = submissionType === 'requerente' ? REQUERENTE_DOCUMENT_TYPES : FAMILIA_DOCUMENT_TYPES;
+  const documentTypes = formData.submissionType === 'requerente' ? REQUERENTE_DOCUMENT_TYPES : FAMILIA_DOCUMENT_TYPES;
 
   return (
     <Layout title={`Envio de Documentos - ${location.charAt(0).toUpperCase() + location.slice(1)}`}>
@@ -116,8 +147,8 @@ export default function DocumentUploadScreen({ location, onNext, onBack }: Docum
           <div>
             <label className="block text-sm font-medium mb-2">Tipo de Envio</label>
             <div className="flex gap-4">
-              <button type="button" onClick={() => setSubmissionType('requerente')} className={`flex-1 p-4 rounded-lg border-2 text-center ${submissionType === 'requerente' ? 'border-blue-500 bg-blue-50' : 'hover:border-slate-300'}`}><User className="mx-auto mb-1" />Requerente</button>
-              <button type="button" onClick={() => setSubmissionType('familia')} className={`flex-1 p-4 rounded-lg border-2 text-center ${submissionType === 'familia' ? 'border-blue-500 bg-blue-50' : 'hover:border-slate-300'}`}><Users className="mx-auto mb-1" />Família</button>
+              <button type="button" onClick={() => handleInputChange('submissionType', 'requerente')} className={`flex-1 p-4 rounded-lg border-2 text-center ${formData.submissionType === 'requerente' ? 'border-blue-500 bg-blue-50' : 'hover:border-slate-300'}`}><User className="mx-auto mb-1" />Requerente</button>
+              <button type="button" onClick={() => handleInputChange('submissionType', 'familia')} className={`flex-1 p-4 rounded-lg border-2 text-center ${formData.submissionType === 'familia' ? 'border-blue-500 bg-blue-50' : 'hover:border-slate-300'}`}><Users className="mx-auto mb-1" />Família</button>
             </div>
           </div>
           
@@ -132,12 +163,33 @@ export default function DocumentUploadScreen({ location, onNext, onBack }: Docum
                 <input id="nomeFamilia" type="text" value={formData.nomeFamilia || ''} onChange={(e) => handleInputChange('nomeFamilia', e.target.value)} className="w-full p-3 border rounded-lg" placeholder="Digite o nome da família" />
               </div>
             </div>
-            {submissionType === 'requerente' && (
+            {formData.submissionType === 'requerente' && (
               <div>
                 <label htmlFor="requerente" className="block text-sm font-medium mb-2">Selecione o Requerente *</label>
                 <select id="requerente" value={formData.idRequerente || ''} onChange={handleApplicantChange} className="w-full p-3 border rounded-lg bg-white" disabled={isFetchingMembers || familyMembers.length === 0}>
                   {isFetchingMembers ? <option>Buscando...</option> : familyMembers.length > 0 ? familyMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>) : <option>Nenhum membro encontrado</option>}
                 </select>
+                {location === 'alphaville' && (
+                  <div className="mt-2">
+                    <button type="button" onClick={() => setShowAddRequerente(!showAddRequerente)} className="text-sm text-blue-600 hover:underline">
+                      Não encontrou o requerente? Adicione um novo.
+                    </button>
+                    {showAddRequerente && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={newRequerenteName}
+                          onChange={(e) => setNewRequerenteName(e.target.value)}
+                          className="w-full p-2 border rounded-lg"
+                          placeholder="Nome do novo requerente"
+                        />
+                        <button type="button" onClick={handleAddRequerente} disabled={isAddingRequerente} className="bg-blue-500 text-white px-4 py-2 rounded-lg disabled:bg-slate-400">
+                          {isAddingRequerente ? <Loader2 className="animate-spin"/> : 'Adicionar'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

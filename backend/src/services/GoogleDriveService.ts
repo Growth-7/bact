@@ -41,11 +41,7 @@ export class GoogleDriveService {
   private readonly auth: any;
 
   constructor() {
-    this.folderId = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
-    if (!this.folderId) {
-      throw new Error('A variável de ambiente GOOGLE_DRIVE_FOLDER_ID não está definida.');
-    }
-
+    this.folderId = this.validateAndProcessFolderId(process.env.GOOGLE_DRIVE_FOLDER_ID || '');
     const credentials = this.buildGoogleCredentials();
 
     this.auth = new google.auth.GoogleAuth({
@@ -228,5 +224,39 @@ export class GoogleDriveService {
     }
 
     return new GoogleDriveUploadResult(fileId, webViewLink);
+  }
+
+  private validateAndProcessFolderId(folderId: string): string {
+    if (!folderId) {
+      throw new Error('A variável GOOGLE_DRIVE_FOLDER_ID não está definida.');
+    }
+
+    // Remove espaços e caracteres inválidos
+    let processedId = folderId.trim();
+    
+    // Remove aspas se estiverem presentes
+    if (processedId.startsWith('"') && processedId.endsWith('"')) {
+      processedId = processedId.slice(1, -1);
+    }
+    if (processedId.startsWith("'") && processedId.endsWith("'")) {
+      processedId = processedId.slice(1, -1);
+    }
+
+    // Verificar se não está duplicado (problema comum em variáveis de ambiente)
+    if (processedId.includes('=')) {
+      const parts = processedId.split('=');
+      if (parts.length === 2 && parts[0] === parts[1]) {
+        console.log('⚠️  [GoogleDriveService] ID da pasta estava duplicado, usando primeira parte');
+        processedId = parts[0];
+      }
+    }
+
+    // Validar formato básico do Google Drive ID
+    if (processedId.length < 10 || processedId.includes(' ')) {
+      throw new Error(`ID da pasta do Google Drive tem formato inválido: "${processedId}"`);
+    }
+
+    console.log('✅ [GoogleDriveService] ID da pasta do Google Drive validado:', processedId);
+    return processedId;
   }
 }

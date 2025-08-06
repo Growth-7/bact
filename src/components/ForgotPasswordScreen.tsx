@@ -1,42 +1,45 @@
 import React, { useState } from 'react';
-import { User as UserIcon, Lock, ArrowRight } from 'lucide-react';
+import { User as UserIcon, Calendar, ArrowRight } from 'lucide-react';
 import Layout from './Layout';
-import { User } from '../types';
 
-interface LoginScreenProps {
-  onLogin: (token: string) => void;
-  onSwitchToRegister: () => void;
-  onSwitchToForgotPassword: () => void;
+interface ForgotPasswordScreenProps {
+  onSwitchToLogin: () => void;
 }
 
-export default function LoginScreen({ onLogin, onSwitchToRegister, onSwitchToForgotPassword }: LoginScreenProps) {
+export default function ForgotPasswordScreen({ onSwitchToLogin }: ForgotPasswordScreenProps) {
   const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [birthDate, setBirthDate] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || !password.trim()) return;
+    if (!username.trim() || !birthDate.trim()) {
+        setError('Todos os campos são obrigatórios.');
+        return;
+    }
     
     setIsLoading(true);
     setError(null);
+    setSuccessMessage(null);
 
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiUrl}/api/auth/login`, {
+      const response = await fetch(`${apiUrl}/api/auth/forgot-password`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, birthDate }),
       });
 
       const data = await response.json();
 
       if (response.ok && data.success) {
-        localStorage.setItem('authToken', data.token);
-        onLogin(data.token);
+        setSuccessMessage(data.message || 'Solicitação de redefinição de senha enviada com sucesso!');
       } else {
-        setError(data.message || 'Falha na autenticação.');
+        setError(data.message || 'Falha ao processar a solicitação.');
       }
     } catch (err) {
       setError('Não foi possível conectar ao servidor.');
@@ -50,8 +53,8 @@ export default function LoginScreen({ onLogin, onSwitchToRegister, onSwitchToFor
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
         <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-xl">
           <div className="text-center">
-            <h3 className="text-2xl font-light">Acesso ao Sistema</h3>
-            <p className="text-slate-500">Entre com suas credenciais</p>
+            <h3 className="text-2xl font-light">Recuperar Senha</h3>
+            <p className="text-slate-500">Informe seus dados para continuar</p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -70,37 +73,32 @@ export default function LoginScreen({ onLogin, onSwitchToRegister, onSwitchToFor
               </div>
             </div>
             <div>
-              <label htmlFor="password">Senha</label>
+              <label htmlFor="birthDate">Data de Nascimento</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2" />
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  id="birthDate"
+                  type="date"
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(e.target.value)}
                   className="w-full pl-10 p-3 border rounded-lg"
-                  placeholder="Sua senha"
                   required
                 />
               </div>
             </div>
             {error && <div className="text-red-600 bg-red-100 p-3 rounded-lg">{error}</div>}
+            {successMessage && <div className="text-green-600 bg-green-100 p-3 rounded-lg">{successMessage}</div>}
             <button
               type="submit"
               disabled={isLoading}
               className="w-full bg-blue-600 text-white p-3 rounded-lg flex justify-center items-center gap-2"
             >
-              {isLoading ? 'Entrando...' : <><span>Entrar</span><ArrowRight /></>}
+              {isLoading ? 'Verificando...' : <><span>Recuperar</span><ArrowRight /></>}
             </button>
             <div className="text-center">
-              <div className="flex items-center justify-between">
-                <button type="button" onClick={onSwitchToRegister} className="text-sm text-blue-600 hover:underline">
-                  Não tem uma conta? Cadastre-se
-                </button>
-                <button type="button" onClick={onSwitchToForgotPassword} className="text-sm text-blue-600 hover:underline">
-                  Esqueceu a senha?
-                </button>
-              </div>
+              <button type="button" onClick={onSwitchToLogin} className="text-sm text-blue-600 hover:underline">
+                Lembrou a senha? Faça login
+              </button>
             </div>
           </form>
         </div>

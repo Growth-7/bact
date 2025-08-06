@@ -116,21 +116,90 @@ const auth = new google.auth.GoogleAuth({
   scopes: ['https://www.googleapis.com/auth/drive'],
 });
 const drive = google.drive({ version: 'v3', auth });
-const PARENT_FOLDER_ID = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
+
+// Validar e processar GOOGLE_DRIVE_FOLDER_ID
+function validateAndProcessFolderId(folderId: string): string {
+  if (!folderId) {
+    throw new Error('A variável GOOGLE_DRIVE_FOLDER_ID não está definida.');
+  }
+
+  // Remove espaços e caracteres inválidos
+  let processedId = folderId.trim();
+  
+  // Remove aspas se estiverem presentes
+  if (processedId.startsWith('"') && processedId.endsWith('"')) {
+    processedId = processedId.slice(1, -1);
+  }
+  if (processedId.startsWith("'") && processedId.endsWith("'")) {
+    processedId = processedId.slice(1, -1);
+  }
+
+  // Verificar se não está duplicado (problema comum em variáveis de ambiente)
+  if (processedId.includes('=')) {
+    const parts = processedId.split('=');
+    if (parts.length === 2 && parts[0] === parts[1]) {
+      console.log('⚠️  ID da pasta estava duplicado, usando primeira parte');
+      processedId = parts[0];
+    }
+  }
+
+  // Validar formato básico do Google Drive ID
+  if (processedId.length < 10 || processedId.includes(' ')) {
+    throw new Error(`ID da pasta do Google Drive tem formato inválido: "${processedId}"`);
+  }
+
+  console.log('✅ ID da pasta do Google Drive validado:', processedId);
+  return processedId;
+}
+
+const PARENT_FOLDER_ID = validateAndProcessFolderId(process.env.GOOGLE_DRIVE_FOLDER_ID || '');
 
 async function getOrCreateFolder(name: string, parentId: string): Promise<string> {
-  const query = `mimeType='application/vnd.google-apps.folder' and name='${name}' and '${parentId}' in parents and trashed=false`;
-  const { data } = await drive.files.list({ q: query, fields: 'files(id)', supportsAllDrives: true, includeItemsFromAllDrives: true });
-  if (data.files && data.files.length > 0) {
-    return data.files[0]?.id || '';
+  console.log(`🔍 Procurando/criando pasta: "${name}" na pasta pai: "${parentId}"`);
+  
+  // Validar parâmetros
+  if (!name || !parentId) {
+    throw new Error(`Parâmetros inválidos para getOrCreateFolder: name="${name}", parentId="${parentId}"`);
   }
-  const fileMetadata = { name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] };
-  const { data: newFolder } = await drive.files.create({
-    requestBody: fileMetadata,
-    fields: 'id',
-    supportsAllDrives: true,
-  });
-  return newFolder.id!;
+
+  try {
+    const query = `mimeType='application/vnd.google-apps.folder' and name='${name}' and '${parentId}' in parents and trashed=false`;
+    console.log(`🔍 Query do Google Drive: ${query}`);
+    
+    const { data } = await drive.files.list({ 
+      q: query, 
+      fields: 'files(id)', 
+      supportsAllDrives: true, 
+      includeItemsFromAllDrives: true 
+    });
+    
+    if (data.files && data.files.length > 0) {
+      const foundId = data.files[0]?.id || '';
+      console.log(`✅ Pasta encontrada: "${name}" com ID: ${foundId}`);
+      return foundId;
+    }
+    
+    console.log(`📁 Pasta não encontrada, criando nova pasta: "${name}"`);
+    const fileMetadata = { name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] };
+    const { data: newFolder } = await drive.files.create({
+      requestBody: fileMetadata,
+      fields: 'id',
+      supportsAllDrives: true,
+    });
+    
+    const newId = newFolder.id!;
+    console.log(`✅ Nova pasta criada: "${name}" com ID: ${newId}`);
+    return newId;
+    
+  } catch (error) {
+    console.error(`❌ Erro ao processar pasta "${name}" na pasta pai "${parentId}":`, error);
+    
+    if (error instanceof Error && error.message.includes('File not found')) {
+      throw new Error(`A pasta pai com ID "${parentId}" não foi encontrada ou não é acessível. Verifique se o ID está correto e se a Service Account tem permissões.`);
+    }
+    
+    throw error;
+  }
 }
 
 function bufferToBase64(buffer: Buffer): string {
