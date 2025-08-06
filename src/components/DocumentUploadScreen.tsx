@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Upload, ArrowRight, ArrowLeft, User, Users, X, Paperclip, Loader2 } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import Layout from './Layout';
-import { DocumentSubmission, SubmissionType, LocationType, REQUERente_DOCUMENT_TYPES, FAMILIA_DOCUMENT_TYPES } from '../types';
+import { DocumentSubmission, SubmissionType, LocationType, REQUERENTE_DOCUMENT_TYPES, FAMILIA_DOCUMENT_TYPES } from '../types';
 import axios from 'axios';
 import { isUUID } from 'class-validator';
 
