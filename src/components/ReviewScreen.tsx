@@ -43,7 +43,8 @@ export default function ReviewScreen({ data, user, onBack, onSubmit }: ReviewScr
     formData.append('bitrixUserId', user.user_id_bitrix24);
 
     try {
-      const response = await axios.post('http://localhost:3333/api/submissions', formData, {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const response = await axios.post(`${apiUrl}/api/submissions`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       if (response.data.success) {
