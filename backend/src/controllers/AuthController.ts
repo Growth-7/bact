@@ -7,16 +7,23 @@ import { isUUID } from 'class-validator';
 
 const prisma = DatabaseConnection.getInstance();
 
-const getValidationApiHeaders = () => {
-  const VALIDATION_API_KEY = process.env.VALIDATION_SUPABASE_ANON_KEY;
-  const VALIDATION_SERVICE_KEY = process.env.VALIDATION_SUPABASE_SERVICE_ROLE_KEY;
-  if (!VALIDATION_API_KEY || !VALIDATION_SERVICE_KEY) {
-    throw new Error('A configuração da API de validação está incompleta no servidor.');
+const getValidationApiConfig = () => {
+  const projectUrl = process.env.VALIDATION_SUPABASE_PROJECT_URL;
+  const anonKey = process.env.VALIDATION_SUPABASE_ANON_KEY;
+  const serviceKey = process.env.VALIDATION_SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!projectUrl || !anonKey || !serviceKey) {
+    throw new Error('A configuração da API de validação Supabase está incompleta no servidor.');
   }
+
   return {
-    'apikey': VALIDATION_API_KEY,
-    'Authorization': `Bearer ${VALIDATION_SERVICE_KEY}`,
-    'Content-Type': 'application/json',
+    restUrl: `${projectUrl}/rest/v1`,
+    functionsUrl: `${projectUrl}/functions/v1`,
+    headers: {
+      'apikey': anonKey,
+      'Authorization': `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json',
+    },
   };
 };
 
@@ -32,13 +39,13 @@ export class AuthController {
         return res.status(409).json({ success: false, message: 'Usuário ou ID Bitrix24 já cadastrado.' });
       }
       const hashedPassword = await bcrypt.hash(password, 10);
-      const user = await prisma.user.create({ 
-        data: { 
-          username, 
-          password: hashedPassword, 
+      const user = await prisma.user.create({
+        data: {
+          username,
+          password: hashedPassword,
           user_id_bitrix24,
-          birth_date: new Date(birth_date) 
-        } 
+          birth_date: new Date(birth_date),
+        },
       });
       return res.status(201).json({ success: true, user: { id: user.id, username: user.username } });
     } catch (error) {
@@ -63,10 +70,10 @@ export class AuthController {
       }
 
       const token = jwt.sign(
-        { 
-          id: user.id, 
+        {
+          id: user.id,
           username: user.username,
-          user_id_bitrix24: user.user_id_bitrix24 
+          user_id_bitrix24: user.user_id_bitrix24,
         },
         process.env.JWT_SECRET as string,
         { expiresIn: '1h' }
@@ -79,42 +86,18 @@ export class AuthController {
     }
   }
 
-  async validateIds(req: Request, res: Response): Promise<Response | void> {
-    const { familyId, applicantId } = req.body;
-    if (familyId && !isUUID(familyId)) {
-      return res.status(400).json({ success: false, field: 'familyId', message: 'Formato de ID da Família inválido.' });
-    }
-    if (applicantId && !isUUID(applicantId)) {
-      return res.status(400).json({ success: false, field: 'applicantId', message: 'Formato de ID do Requerente inválido.' });
-    }
-    try {
-      const headers = getValidationApiHeaders();
-      const VALIDATION_FUNCTION_URL = `${process.env.VALIDATION_SUPABASE_URL}/functions/v1/validation_ids`;
-      const body = { familia_id: familyId, customer_id: applicantId };
-      const { data } = await axios.post(VALIDATION_FUNCTION_URL, body, { headers });
-      if (data.exists) {
-        return res.status(200).json({ success: true, message: 'IDs validados com sucesso.' });
-      } else {
-        return res.status(404).json({ success: false, message: 'ID não encontrado.' });
-      }
-    } catch (error) {
-      console.error('Erro na validação de IDs via Edge Function:', error);
-      return res.status(500).json({ success: false, message: 'Erro ao comunicar com o serviço de validação.' });
-    }
-  }
-
   async getFamilyMembers(req: Request, res: Response): Promise<Response | void> {
     const { familyId } = req.params;
     if (!isUUID(familyId)) {
       return res.status(400).json({ success: false, message: 'Formato de ID da Família inválido.' });
     }
     try {
-      const headers = getValidationApiHeaders();
-      const API_URL = process.env.VALIDATION_SUPABASE_URL;
+      const { restUrl, headers } = getValidationApiConfig();
       const { data } = await axios.get(
-        `${API_URL}/customer?select=id,slug&familia_id=eq.${familyId}`,
+        `${restUrl}/customer?select=id,slug&familia_id=eq.${familyId}`,
         { headers }
       );
+
       if (!data) {
         return res.status(404).json({ success: false, message: 'Nenhum membro encontrado para esta família.' });
       }
@@ -132,32 +115,28 @@ export class AuthController {
   async addRequerente(req: Request, res: Response): Promise<Response | void> {
     const { nome, familia_id } = req.body;
     if (!nome || !familia_id) {
-        return res.status(400).json({ success: false, message: 'Nome e ID da família são obrigatórios.' });
+      return res.status(400).json({ success: false, message: 'Nome e ID da família são obrigatórios.' });
     }
     if (!isUUID(familia_id)) {
-        return res.status(400).json({ success: false, message: 'Formato de ID da Família inválido.' });
+      return res.status(400).json({ success: false, message: 'Formato de ID da Família inválido.' });
     }
 
     try {
-        const headers = getValidationApiHeaders();
-        const functionUrl = `${process.env.VALIDATION_SUPABASE_URL}/functions/v1/addRequerente`;
-        
-        const response = await axios.post(
-            functionUrl,
-            { nome, familia_id },
-            { headers }
-        );
+      const { functionsUrl, headers } = getValidationApiConfig();
+      const response = await axios.post(
+        `${functionsUrl}/addRequerente`,
+        { nome, familia_id },
+        { headers }
+      );
 
-        return res.status(response.status).json(response.data);
-
+      return res.status(response.status).json(response.data);
     } catch (error: any) {
-        console.error('Erro ao adicionar requerente via Edge Function:', error.response?.data || error.message);
-        const status = error.response?.status || 500;
-        const message = error.response?.data?.error || 'Erro ao comunicar com o serviço de validação.';
-        return res.status(status).json({ success: false, error: message });
+      console.error('Erro ao adicionar requerente via Edge Function:', error.response?.data || error.message);
+      const status = error.response?.status || 500;
+      const message = error.response?.data?.error || 'Erro ao comunicar com o serviço de validação.';
+      return res.status(status).json({ success: false, error: message });
     }
   }
-
 
   async forgotPassword(req: Request, res: Response): Promise<Response | void> {
     const { username, birthDate } = req.body;
@@ -170,22 +149,17 @@ export class AuthController {
       const user = await prisma.user.findUnique({ where: { username } });
 
       if (!user || !user.birth_date) {
-        // Mensagem genérica para não revelar se o usuário existe
         return res.status(401).json({ success: false, message: 'Credenciais inválidas.' });
       }
 
       const userBirthDate = new Date(user.birth_date);
       const providedBirthDate = new Date(birthDate);
 
-      // Compara apenas a data (ignora a parte do tempo)
       if (userBirthDate.toISOString().slice(0, 10) !== providedBirthDate.toISOString().slice(0, 10)) {
         return res.status(401).json({ success: false, message: 'Credenciais inválidas.' });
       }
 
-      // TODO: Implementar lógica de geração de token e envio de email
-      // Por enquanto, apenas retornamos sucesso para o frontend
       return res.status(200).json({ success: true, message: 'Se o usuário existir e os dados estiverem corretos, um email de redefinição será enviado.' });
-
     } catch (error) {
       console.error('Erro no processo de esqueci a senha:', error);
       return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
