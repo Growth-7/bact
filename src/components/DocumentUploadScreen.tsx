@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Upload, ArrowRight, ArrowLeft, User, Users, X, Paperclip, Loader2 } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import Layout from './Layout';
-import { DocumentSubmission, SubmissionType, LocationType, REQUERENTE_DOCUMENT_TYPES, FAMILIA_DOCUMENT_TYPES } from '../types';
+import { DocumentSubmission, SubmissionType, LocationType, REQUERente_DOCUMENT_TYPES, FAMILIA_DOCUMENT_TYPES } from '../types';
 import axios from 'axios';
 import { isUUID } from 'class-validator';
 
@@ -62,7 +62,6 @@ export default function DocumentUploadScreen({ location, onNext, onBack, initial
           const { data } = await axios.get(`${apiUrl}/api/auth/family-members/${formData.idFamilia}`);
           setFamilyMembers(data.success ? data.members : []);
           if (data.success && data.members.length > 0) {
-            // Apenas define o primeiro membro se nenhum já estiver selecionado
             if (!formData.idRequerente) {
                 const firstMember = data.members[0];
                 setFormData(prev => ({ ...prev, idRequerente: firstMember.id, nomeRequerente: firstMember.name }));
@@ -106,24 +105,14 @@ export default function DocumentUploadScreen({ location, onNext, onBack, initial
     setError(null);
 
     try {
-        const supabaseUrl = import.meta.env.VITE_VALIDATION_SUPABASE_URL;
-        const anonKey = import.meta.env.VITE_VALIDATION_SUPABASE_ANON_KEY;
-        const serviceRoleKey = import.meta.env.VITE_VALIDATION_SUPABASE_SERVICE_ROLE_KEY;
-
-        const addRequerenteUrl = `${supabaseUrl}/functions/v1/addRequerente`;
+        const apiUrl = import.meta.env.VITE_API_URL || '';
+        const addRequerenteUrl = `${apiUrl}/api/auth/add-requerente`;
 
         const response = await axios.post(
             addRequerenteUrl,
             {
                 nome: newRequerenteName,
                 familia_id: formData.idFamilia,
-            },
-            {
-                headers: {
-                    'apikey': anonKey,
-                    'Authorization': `Bearer ${serviceRoleKey}`,
-                    'Content-Type': 'application/json',
-                },
             }
         );
 
@@ -151,7 +140,6 @@ export default function DocumentUploadScreen({ location, onNext, onBack, initial
       return;
     }
     setIsValidating(true);
-    // Simulação de validação
     setTimeout(() => {
       setIsValidating(false);
       onNext({ ...formData, location });

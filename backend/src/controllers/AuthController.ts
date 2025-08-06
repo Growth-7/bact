@@ -129,6 +129,36 @@ export class AuthController {
     }
   }
 
+  async addRequerente(req: Request, res: Response): Promise<Response | void> {
+    const { nome, familia_id } = req.body;
+    if (!nome || !familia_id) {
+        return res.status(400).json({ success: false, message: 'Nome e ID da família são obrigatórios.' });
+    }
+    if (!isUUID(familia_id)) {
+        return res.status(400).json({ success: false, message: 'Formato de ID da Família inválido.' });
+    }
+
+    try {
+        const headers = getValidationApiHeaders();
+        const functionUrl = `${process.env.VALIDATION_SUPABASE_URL}/functions/v1/addRequerente`;
+        
+        const response = await axios.post(
+            functionUrl,
+            { nome, familia_id },
+            { headers }
+        );
+
+        return res.status(response.status).json(response.data);
+
+    } catch (error: any) {
+        console.error('Erro ao adicionar requerente via Edge Function:', error.response?.data || error.message);
+        const status = error.response?.status || 500;
+        const message = error.response?.data?.error || 'Erro ao comunicar com o serviço de validação.';
+        return res.status(status).json({ success: false, error: message });
+    }
+  }
+
+
   async forgotPassword(req: Request, res: Response): Promise<Response | void> {
     const { username, birthDate } = req.body;
 
@@ -162,4 +192,3 @@ export class AuthController {
     }
   }
 }
-
