@@ -1,6 +1,6 @@
 import axios from 'axios';
-import { BitrixWebhookUrl } from '../config/BitrixWebhookUrl';
-import { BitrixDealData } from './BitrixDealData';
+import { BitrixWebhookUrl } from '../config/BitrixWebhookUrl.js';
+import { BitrixDealData } from './BitrixDealData.js';
 
 export class BitrixDealResult {
   constructor(

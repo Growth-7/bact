@@ -1,6 +1,6 @@
-import { PrismaClient } from '@prisma/client';
-import { DatabaseConnection } from '../config/DatabaseConnection';
-import { SubmissionData } from '../models/SubmissionData';
+import { PrismaClient, type User, type Submission } from '@prisma/client';
+import { DatabaseConnection } from '../config/DatabaseConnection.js';
+import { SubmissionData } from '../models/SubmissionData.js';
 
 export class DatabaseCreateResult {
   constructor(
@@ -24,20 +24,22 @@ export class DatabaseService {
     this.prisma = DatabaseConnection.getInstance();
   }
 
-  async createUser(username: string): Promise<string> {
+  async createUser(username: string, passwordHash: string, bitrixId: string): Promise<User> {
     try {
       const existingUser = await this.findUserByUsername(username);
       if (existingUser) {
-        return existingUser.id;
+        return existingUser;
       }
 
       const newUser = await this.prisma.user.create({
         data: {
-          username: username
+          username: username,
+          password: passwordHash,
+          user_id_bitrix24: bitrixId
         }
       });
 
-      return newUser.id;
+      return newUser;
     } catch (error) {
       throw new Error(`Erro ao criar usuário: ${error}`);
     }
@@ -53,14 +55,14 @@ export class DatabaseService {
           location: submissionData.getLocation(),
           submissionType: submissionData.getSubmissionType(),
           documentType: submissionData.getDocumentType(),
-          fileUrl: submissionData.getFileUrl(),
-          fileType: submissionData.getFileType(),
+          fileUrls: submissionData.getFileUrls(), // Corrigido de fileUrl
           bitrixDealId: submissionData.getBitrixDealId(),
           status: submissionData.getStatus(),
           userId: userId,
-          fields: {
-            create: submissionData.getCustomFieldsAsArray()
-          }
+          nomeFamilia: submissionData.getNomeFamilia(),
+          idFamilia: submissionData.getIdFamilia(),
+          nomeRequerente: submissionData.getNomeRequerente(),
+          idRequerente: submissionData.getIdRequerente()
         }
       });
 
@@ -98,12 +100,11 @@ export class DatabaseService {
     }
   }
 
-  async findSubmissionById(submissionId: string): Promise<any> {
+  async findSubmissionById(submissionId: string): Promise<Submission | null> {
     try {
       return await this.prisma.submission.findUnique({
         where: { id: submissionId },
         include: {
-          fields: true,
           user: true
         }
       });
@@ -112,13 +113,10 @@ export class DatabaseService {
     }
   }
 
-  async findSubmissionsByUserId(userId: string): Promise<any[]> {
+  async findSubmissionsByUserId(userId: string): Promise<Submission[]> {
     try {
       return await this.prisma.submission.findMany({
         where: { userId: userId },
-        include: {
-          fields: true
-        },
         orderBy: {
           createdAt: 'desc'
         }
@@ -128,7 +126,7 @@ export class DatabaseService {
     }
   }
 
-  private async findUserByUsername(username: string): Promise<any> {
+  private async findUserByUsername(username: string): Promise<User | null> {
     try {
       return await this.prisma.user.findUnique({
         where: { username: username }

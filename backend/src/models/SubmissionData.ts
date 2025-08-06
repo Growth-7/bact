@@ -1,193 +1,107 @@
-export class SubmissionLocation {
-  private readonly location: string;
+// Utilizando classes para encapsular os tipos primitivos e coleções,
+// seguindo as regras de Object Calisthenics.
 
-  constructor(location: string) {
-    this.validateLocation(location);
-    this.location = location;
+class SubmissionLocation {
+  constructor(private readonly value: string) {
+    if (!value || value.trim().length === 0) throw new Error('Localização é obrigatória');
   }
+  getValue(): string { return this.value; }
+}
 
-  private validateLocation(location: string): void {
-    if (!location || location.trim().length === 0) {
-      throw new Error('Localização é obrigatória');
+class SubmissionType {
+  constructor(private readonly value: string) {
+    if (!value || value.trim().length === 0) throw new Error('Tipo de submissão é obrigatório');
+  }
+  getValue(): string { return this.value; }
+}
+
+class DocumentType {
+  constructor(private readonly value: string) {
+    if (!value || value.trim().length === 0) throw new Error('Tipo de documento é obrigatório');
+  }
+  getValue(): string { return this.value; }
+}
+
+// Corrigido para lidar com um array de URLs, conforme o schema.
+class FileUrls {
+  constructor(private readonly values: string[]) {
+    if (!values || values.length === 0 || values.some(url => !url || url.trim().length === 0)) {
+      throw new Error('Pelo menos uma URL de arquivo é obrigatória');
     }
   }
-
-  getValue(): string {
-    return this.location;
-  }
+  getValues(): string[] { return this.values; }
 }
 
-export class SubmissionType {
-  private readonly submissionType: string;
-
-  constructor(submissionType: string) {
-    this.validateSubmissionType(submissionType);
-    this.submissionType = submissionType;
-  }
-
-  private validateSubmissionType(type: string): void {
-    if (!type || type.trim().length === 0) {
-      throw new Error('Tipo de submissão é obrigatório');
-    }
-  }
-
-  getValue(): string {
-    return this.submissionType;
-  }
+class SubmissionStatus {
+  constructor(private readonly value: string = 'Pending') {}
+  getValue(): string { return this.value; }
 }
 
-export class DocumentType {
-  private readonly documentType: string;
-
-  constructor(documentType: string) {
-    this.validateDocumentType(documentType);
-    this.documentType = documentType;
-  }
-
-  private validateDocumentType(type: string): void {
-    if (!type || type.trim().length === 0) {
-      throw new Error('Tipo de documento é obrigatório');
-    }
-  }
-
-  getValue(): string {
-    return this.documentType;
-  }
+class NomeFamilia {
+    constructor(private readonly value: string) {}
+    getValue(): string { return this.value; }
 }
 
-export class FileUrl {
-  private readonly fileUrl: string;
-
-  constructor(fileUrl: string) {
-    this.validateFileUrl(fileUrl);
-    this.fileUrl = fileUrl;
-  }
-
-  private validateFileUrl(url: string): void {
-    if (!url || url.trim().length === 0) {
-      throw new Error('URL do arquivo é obrigatória');
-    }
-  }
-
-  getValue(): string {
-    return this.fileUrl;
-  }
+class IdFamilia {
+    constructor(private readonly value: string) {}
+    getValue(): string { return this.value; }
 }
 
-export class FileType {
-  private readonly fileType: string;
-
-  constructor(fileType: string) {
-    this.validateFileType(fileType);
-    this.fileType = fileType;
-  }
-
-  private validateFileType(type: string): void {
-    if (!type || type.trim().length === 0) {
-      throw new Error('Tipo do arquivo é obrigatório');
-    }
-  }
-
-  getValue(): string {
-    return this.fileType;
-  }
+class NomeRequerente {
+    constructor(private readonly value: string | undefined) {}
+    getValue(): string | undefined { return this.value; }
 }
 
-export class SubmissionStatus {
-  private readonly status: string;
-
-  constructor(status: string = 'Pending') {
-    this.status = status;
-  }
-
-  getValue(): string {
-    return this.status;
-  }
-
-  isPending(): boolean {
-    return this.status === 'Pending';
-  }
-
-  isProcessed(): boolean {
-    return this.status === 'Processed';
-  }
-
-  isFailed(): boolean {
-    return this.status === 'Failed';
-  }
+class IdRequerente {
+    constructor(private readonly value: string | undefined) {}
+    getValue(): string | undefined { return this.value; }
 }
 
+// A classe principal de dados, agora compondo os outros Value Objects.
 export class SubmissionData {
   private readonly location: SubmissionLocation;
   private readonly submissionType: SubmissionType;
   private readonly documentType: DocumentType;
-  private readonly fileUrl: FileUrl;
-  private readonly fileType: FileType;
+  private readonly fileUrls: FileUrls; // Corrigido para usar a coleção
   private readonly status: SubmissionStatus;
-  private readonly fields: Map<string, string>;
   private bitrixDealId?: string;
+  private readonly nomeFamilia: NomeFamilia;
+  private readonly idFamilia: IdFamilia;
+  private readonly nomeRequerente: NomeRequerente;
+  private readonly idRequerente: IdRequerente;
+
 
   constructor(
     location: string,
     submissionType: string,
     documentType: string,
-    fileUrl: string,
-    fileType: string,
-    customFields: Record<string, string> = {}
+    fileUrls: string[], // Corrigido para aceitar um array
+    nomeFamilia: string,
+    idFamilia: string,
+    nomeRequerente?: string,
+    idRequerente?: string,
   ) {
     this.location = new SubmissionLocation(location);
     this.submissionType = new SubmissionType(submissionType);
     this.documentType = new DocumentType(documentType);
-    this.fileUrl = new FileUrl(fileUrl);
-    this.fileType = new FileType(fileType);
+    this.fileUrls = new FileUrls(fileUrls); // Corrigido
     this.status = new SubmissionStatus();
-    this.fields = new Map(Object.entries(customFields));
+    this.nomeFamilia = new NomeFamilia(nomeFamilia);
+    this.idFamilia = new IdFamilia(idFamilia);
+    this.nomeRequerente = new NomeRequerente(nomeRequerente);
+    this.idRequerente = new IdRequerente(idRequerente);
   }
 
-  getLocation(): string {
-    return this.location.getValue();
-  }
-
-  getSubmissionType(): string {
-    return this.submissionType.getValue();
-  }
-
-  getDocumentType(): string {
-    return this.documentType.getValue();
-  }
-
-  getFileUrl(): string {
-    return this.fileUrl.getValue();
-  }
-
-  getFileType(): string {
-    return this.fileType.getValue();
-  }
-
-  getStatus(): string {
-    return this.status.getValue();
-  }
-
-  getBitrixDealId(): string | undefined {
-    return this.bitrixDealId;
-  }
-
-  setBitrixDealId(dealId: string): void {
-    this.bitrixDealId = dealId;
-  }
-
-  addCustomField(key: string, value: string): void {
-    this.fields.set(key, value);
-  }
-
-  getCustomFields(): Record<string, string> {
-    return Object.fromEntries(this.fields);
-  }
-
-  getCustomFieldsAsArray(): Array<{ key: string; value: string }> {
-    return Array.from(this.fields.entries()).map(([key, value]) => ({
-      key,
-      value
-    }));
-  }
+  // Getters para acessar os valores encapsulados
+  getLocation(): string { return this.location.getValue(); }
+  getSubmissionType(): string { return this.submissionType.getValue(); }
+  getDocumentType(): string { return this.documentType.getValue(); }
+  getFileUrls(): string[] { return this.fileUrls.getValues(); } // Corrigido
+  getStatus(): string { return this.status.getValue(); }
+  getBitrixDealId(): string | undefined { return this.bitrixDealId; }
+  setBitrixDealId(dealId: string): void { this.bitrixDealId = dealId; }
+  getNomeFamilia(): string { return this.nomeFamilia.getValue(); }
+  getIdFamilia(): string { return this.idFamilia.getValue(); }
+  getNomeRequerente(): string | undefined { return this.nomeRequerente.getValue(); }
+  getIdRequerente(): string | undefined { return this.idRequerente.getValue(); }
 }
