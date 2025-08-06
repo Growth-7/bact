@@ -1,0 +1,13 @@
+services:
+  frontend:
+    dockerfile: Dockerfile.frontend
+    port: 80
+    environment:
+      - VITE_API_URL=http://backend:3333
+
+  backend:
+    dockerfile: backend/Dockerfile
+    port: 3333
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - PORT=3333
