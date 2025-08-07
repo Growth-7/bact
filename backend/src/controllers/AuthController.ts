@@ -147,7 +147,9 @@ export class AuthController {
 
       const response = await axios.post(functionUrl, {
         nome: requerenteName,
+        slug: requerenteName,
         familia_id: idFamilia,
+        customer_type: 'req'
       }, { headers });
 
       if (response.data && response.data.idRequerente) {
