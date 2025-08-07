@@ -146,9 +146,8 @@ export class AuthController {
       const headers = getValidationApiHeaders();
 
       const response = await axios.post(functionUrl, {
-        familyName,
-        idFamilia,
-        requerenteName
+        nome: requerenteName,
+        familia_id: idFamilia,
       }, { headers });
 
       if (response.data && response.data.idRequerente) {
