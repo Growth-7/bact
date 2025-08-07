@@ -9,23 +9,25 @@ import { isUUID } from 'class-validator';
 interface FamilyMember {
   id: string;
   name: string;
+  customer_type: string;
 }
 
 interface DocumentUploadScreenProps {
   location: LocationType;
   onNext: (data: DocumentSubmission) => void;
   onBack: () => void;
+  initialData?: DocumentSubmission | null;
 }
 
-export default function DocumentUploadScreen({ location, onNext, onBack }: DocumentUploadScreenProps) {
-  const [submissionType, setSubmissionType] = useState<SubmissionType>('requerente');
+export default function DocumentUploadScreen({ location, onNext, onBack, initialData }: DocumentUploadScreenProps) {
+  const [submissionType, setSubmissionType] = useState<SubmissionType>(initialData?.submissionType || 'requerente');
   const [formData, setFormData] = useState<Omit<DocumentSubmission, 'location' | 'submissionType'>>({
-    nomeRequerente: '',
-    idRequerente: '',
-    nomeFamilia: '',
-    idFamilia: '',
-    documentType: REQUERENTE_DOCUMENT_TYPES[0],
-    files: [],
+    nomeRequerente: initialData?.nomeRequerente || '',
+    idRequerente: initialData?.idRequerente || '',
+    nomeFamilia: initialData?.nomeFamilia || '',
+    idFamilia: initialData?.idFamilia || '',
+    documentType: initialData?.documentType || REQUERENTE_DOCUMENT_TYPES[0],
+    files: initialData?.files || [],
   });
   const [error, setError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
