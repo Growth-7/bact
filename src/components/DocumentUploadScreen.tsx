@@ -31,6 +31,9 @@ export default function DocumentUploadScreen({ location, onNext, onBack }: Docum
   const [isValidating, setIsValidating] = useState(false);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [isFetchingMembers, setIsFetchingMembers] = useState(false);
+  const [isCreatingRequerente, setIsCreatingRequerente] = useState(false);
+  const [novoRequerenteNome, setNovoRequerenteNome] = useState('');
+
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setFormData(prev => ({ ...prev, files: [...prev.files, ...acceptedFiles] }));
@@ -47,8 +50,14 @@ export default function DocumentUploadScreen({ location, onNext, onBack }: Docum
 
   const handleApplicantChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedId = e.target.value;
-    const selectedMember = familyMembers.find(m => m.id === selectedId);
-    setFormData(prev => ({ ...prev, idRequerente: selectedId, nomeRequerente: selectedMember?.name || '' }));
+    if (selectedId === 'add_new') {
+      setIsCreatingRequerente(true);
+      setFormData(prev => ({ ...prev, idRequerente: '', nomeRequerente: '' }));
+    } else {
+      setIsCreatingRequerente(false);
+      const selectedMember = familyMembers.find(m => m.id === selectedId);
+      setFormData(prev => ({ ...prev, idRequerente: selectedId, nomeRequerente: selectedMember?.name || '' }));
+    }
   };
 
   useEffect(() => {
@@ -62,6 +71,8 @@ export default function DocumentUploadScreen({ location, onNext, onBack }: Docum
           setFamilyMembers(data.success ? data.members : []);
           if (data.success && data.members.length > 0) {
             setFormData(prev => ({ ...prev, idRequerente: data.members[0].id, nomeRequerente: data.members[0].name }));
+          } else {
+            setFormData(prev => ({...prev, idRequerente: '', nomeRequerente: ''}));
           }
         } catch (err: any) {
           setError(err.response?.data?.message || 'Erro ao buscar membros.');
@@ -84,7 +95,12 @@ export default function DocumentUploadScreen({ location, onNext, onBack }: Docum
   const isFormValid = () => {
     const { files, nomeFamilia, idFamilia, idRequerente } = formData;
     if (files.length === 0 || !nomeFamilia?.trim() || !idFamilia?.trim()) return false;
-    if (submissionType === 'requerente' && !idRequerente?.trim()) return false;
+    if (submissionType === 'requerente') {
+        if (isCreatingRequerente) {
+            return novoRequerenteNome.trim() !== '';
+        }
+        return idRequerente?.trim() !== '';
+    }
     return true;
   };
 
@@ -96,15 +112,31 @@ export default function DocumentUploadScreen({ location, onNext, onBack }: Docum
       return;
     }
     setIsValidating(true);
+    let submissionData = { ...formData };
+
     try {
-      // Sua lógica de validação com a Edge Function aqui...
-      console.log('Validando IDs...');
-    } catch (err) {
-      // Tratar erro
+        if (submissionType === 'requerente' && isCreatingRequerente) {
+            console.log('Criando novo requerente...');
+            const apiUrl = import.meta.env.VITE_API_URL || '';
+            const response = await axios.post(`${apiUrl}/api/auth/requerente`, {
+                familyName: formData.nomeFamilia,
+                idFamilia: formData.idFamilia,
+                requerenteName: novoRequerenteNome
+            });
+            
+            if (response.data && response.data.success && response.data.idRequerente) {
+                submissionData.idRequerente = response.data.idRequerente;
+                submissionData.nomeRequerente = novoRequerenteNome;
+            } else {
+                throw new Error(response.data.message || 'Falha ao criar novo requerente.');
+            }
+        }
+      onNext({ ...submissionData, submissionType, location });
+    } catch (err: any) {
+      setError(err.response?.data?.error || err.message || 'Ocorreu um erro.');
     } finally {
       setIsValidating(false);
     }
-    onNext({ ...formData, submissionType, location });
   };
   
   const documentTypes = submissionType === 'requerente' ? REQUERENTE_DOCUMENT_TYPES : FAMILIA_DOCUMENT_TYPES;
@@ -132,13 +164,24 @@ export default function DocumentUploadScreen({ location, onNext, onBack }: Docum
                 <input id="nomeFamilia" type="text" value={formData.nomeFamilia || ''} onChange={(e) => handleInputChange('nomeFamilia', e.target.value)} className="w-full p-3 border rounded-lg" placeholder="Digite o nome da família" />
               </div>
             </div>
-            {submissionType === 'requerente' && (
+            {submissionType === 'requerente' && location === 'alphaville' && (
               <div>
                 <label htmlFor="requerente" className="block text-sm font-medium mb-2">Selecione o Requerente *</label>
-                <select id="requerente" value={formData.idRequerente || ''} onChange={handleApplicantChange} className="w-full p-3 border rounded-lg bg-white" disabled={isFetchingMembers || familyMembers.length === 0}>
-                  {isFetchingMembers ? <option>Buscando...</option> : familyMembers.length > 0 ? familyMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>) : <option>Nenhum membro encontrado</option>}
+                <select id="requerente" value={isCreatingRequerente ? 'add_new' : formData.idRequerente || ''} onChange={handleApplicantChange} className="w-full p-3 border rounded-lg bg-white" disabled={isFetchingMembers}>
+                  {isFetchingMembers ? <option>Buscando...</option> : 
+                    <>
+                      {familyMembers.length > 0 ? familyMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>) : <option disabled value="">Nenhum membro encontrado</option>}
+                      <option value="add_new">Requerente não encontrado (Adicionar novo)</option>
+                    </>
+                  }
                 </select>
               </div>
+            )}
+            {isCreatingRequerente && (
+                <div>
+                    <label htmlFor="novoRequerenteNome" className="block text-sm font-medium mb-2">Nome do Novo Requerente *</label>
+                    <input id="novoRequerenteNome" type="text" value={novoRequerenteNome} onChange={(e) => setNovoRequerenteNome(e.target.value)} className="w-full p-3 border rounded-lg" placeholder="Digite o nome completo do requerente" />
+                </div>
             )}
           </div>
           
