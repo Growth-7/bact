@@ -112,18 +112,23 @@ export class AuthController {
       const headers = getValidationApiHeaders();
       const API_URL = process.env.VALIDATION_SUPABASE_URL;
       const { data } = await axios.get(
-        `${API_URL}/rest/v1/customer?select=*,user_infos(*)&familia_id=eq.${familyId}`,
+        `${API_URL}/rest/v1/customer_full_info?select=*&familia_id=eq.${familyId}`,
         { headers }
       );
-      if (!data) {
+
+      if (!data || data.length === 0) {
         return res.status(404).json({ success: false, message: 'Nenhum membro encontrado para esta família.' });
       }
+
+      const familyName = data[0]?.family_name || '';
+      
       const members = data.map((member: any) => ({
-        id: member.id,
-        name: member.user_infos?.full_name || member.slug || 'Nome não encontrado',
+        id: member.customer_id,
+        name: member.full_name || member.slug || 'Nome não encontrado',
         customer_type: member.customer_type,
       }));
-      return res.status(200).json({ success: true, members });
+
+      return res.status(200).json({ success: true, members, familyName });
     } catch (error) {
       console.error('Erro ao buscar membros da família:', error);
       return res.status(500).json({ success: false, message: 'Erro ao buscar membros da família.' });
