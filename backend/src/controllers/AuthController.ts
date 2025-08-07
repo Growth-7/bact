@@ -145,16 +145,12 @@ export class AuthController {
       const functionUrl = `${supabaseUrl}/functions/v1/addRequerente`;
       const headers = getValidationApiHeaders();
 
-      const payload = {
+      const response = await axios.post(functionUrl, {
         nome: requerenteName,
         slug: requerenteName,
         familia_id: idFamilia,
         customer_type: 'req'
-      };
-
-      console.log("Enviando para Supabase:", payload);
-
-      const response = await axios.post(functionUrl, payload, { headers });
+      }, { headers });
 
       if (response.data && response.data.idRequerente) {
         return res.status(201).json({ success: true, idRequerente: response.data.idRequerente });
