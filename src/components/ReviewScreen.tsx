@@ -24,7 +24,14 @@ const InfoCard = ({ icon, label, value, capitalize = false }: { icon: React.Reac
 export default function ReviewScreen({ data, user, onBack, onSubmit }: ReviewScreenProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fileToPreview, setFileToPreview] = useState<File | null>(null);
+  const [viewedFiles, setViewedFiles] = useState(new Set<string>());
   const [error, setError] = useState<string | null>(null);
+
+  const handlePreviewFile = (file: File) => {
+    setViewedFiles(prev => new Set(prev).add(file.name));
+    setFileToPreview(file);
+  };
+
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -103,13 +110,19 @@ export default function ReviewScreen({ data, user, onBack, onSubmit }: ReviewScr
                   <div className="flex items-center gap-3">
                     <Paperclip className="w-5 h-5 text-slate-500" />
                     <span className="font-medium">{file.name}</span>
+                    {viewedFiles.has(file.name) && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">Visto</span>}
                   </div>
-                  <button onClick={() => setFileToPreview(file)} className="flex items-center gap-1 text-blue-600 hover:underline text-sm">
+                  <button onClick={() => handlePreviewFile(file)} className="flex items-center gap-1 text-blue-600 hover:underline text-sm">
                     <Eye className="w-4 h-4" /> Visualizar
                   </button>
                 </li>
               ))}
             </ul>
+            {data.files.length > viewedFiles.size && (
+              <p className="text-sm text-amber-600 mt-2">
+                Você precisa visualizar todos os {data.files.length} arquivos para poder enviar. Faltam {data.files.length - viewedFiles.size}.
+              </p>
+            )}
           </div>
         </div>
         {error && <div className="bg-red-100 text-red-700 p-3 rounded-lg mt-6">{error}</div>}
@@ -117,7 +130,7 @@ export default function ReviewScreen({ data, user, onBack, onSubmit }: ReviewScr
           <button onClick={onBack} disabled={isSubmitting} className="flex items-center gap-2 px-6 py-3 disabled:opacity-50">
             <ArrowLeft className="w-4 h-4" /> Voltar
           </button>
-          <button onClick={handleSubmit} disabled={isSubmitting} className="bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white font-medium py-3 px-6 rounded-lg flex items-center gap-2">
+          <button onClick={handleSubmit} disabled={isSubmitting || viewedFiles.size < data.files.length} className="bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white font-medium py-3 px-6 rounded-lg flex items-center gap-2">
             {isSubmitting ? <><Loader2 className="animate-spin" /> Enviando...</> : <><Send /> Enviar Documentos</>}
           </button>
         </div>
