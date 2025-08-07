@@ -1,3 +1,5 @@
+import { SubmissionStatus as PrismaSubmissionStatus } from '@prisma/client';
+
 // Utilizando classes para encapsular os tipos primitivos e coleções,
 // seguindo as regras de Object Calisthenics.
 
@@ -22,19 +24,18 @@ class DocumentType {
   getValue(): string { return this.value; }
 }
 
-// Corrigido para lidar com um array de URLs, conforme o schema.
 class FileUrls {
   constructor(private readonly values: string[]) {
-    if (!values || values.length === 0 || values.some(url => !url || url.trim().length === 0)) {
-      throw new Error('Pelo menos uma URL de arquivo é obrigatória');
+    if (!values || values.some(url => !url || url.trim().length === 0)) {
+      // Permite array vazio inicialmente
     }
   }
   getValues(): string[] { return this.values; }
 }
 
 class SubmissionStatus {
-  constructor(private readonly value: string = 'Pending') {}
-  getValue(): string { return this.value; }
+  constructor(private readonly value: PrismaSubmissionStatus = PrismaSubmissionStatus.PENDING) {}
+  getValue(): PrismaSubmissionStatus { return this.value; }
 }
 
 class NomeFamilia {
@@ -57,12 +58,11 @@ class IdRequerente {
     getValue(): string | undefined { return this.value; }
 }
 
-// A classe principal de dados, agora compondo os outros Value Objects.
 export class SubmissionData {
   private readonly location: SubmissionLocation;
   private readonly submissionType: SubmissionType;
   private readonly documentType: DocumentType;
-  private readonly fileUrls: FileUrls; // Corrigido para usar a coleção
+  private readonly fileUrls: FileUrls;
   private readonly status: SubmissionStatus;
   private bitrixDealId?: string;
   private readonly nomeFamilia: NomeFamilia;
@@ -75,7 +75,7 @@ export class SubmissionData {
     location: string,
     submissionType: string,
     documentType: string,
-    fileUrls: string[], // Corrigido para aceitar um array
+    fileUrls: string[],
     nomeFamilia: string,
     idFamilia: string,
     nomeRequerente?: string,
@@ -84,7 +84,7 @@ export class SubmissionData {
     this.location = new SubmissionLocation(location);
     this.submissionType = new SubmissionType(submissionType);
     this.documentType = new DocumentType(documentType);
-    this.fileUrls = new FileUrls(fileUrls); // Corrigido
+    this.fileUrls = new FileUrls(fileUrls);
     this.status = new SubmissionStatus();
     this.nomeFamilia = new NomeFamilia(nomeFamilia);
     this.idFamilia = new IdFamilia(idFamilia);
@@ -92,12 +92,11 @@ export class SubmissionData {
     this.idRequerente = new IdRequerente(idRequerente);
   }
 
-  // Getters para acessar os valores encapsulados
   getLocation(): string { return this.location.getValue(); }
   getSubmissionType(): string { return this.submissionType.getValue(); }
   getDocumentType(): string { return this.documentType.getValue(); }
-  getFileUrls(): string[] { return this.fileUrls.getValues(); } // Corrigido
-  getStatus(): string { return this.status.getValue(); }
+  getFileUrls(): string[] { return this.fileUrls.getValues(); }
+  getStatus(): PrismaSubmissionStatus { return this.status.getValue(); }
   getBitrixDealId(): string | undefined { return this.bitrixDealId; }
   setBitrixDealId(dealId: string): void { this.bitrixDealId = dealId; }
   getNomeFamilia(): string { return this.nomeFamilia.getValue(); }
