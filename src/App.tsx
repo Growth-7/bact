@@ -96,7 +96,7 @@ function App() {
       }
       break;
     case 'success':
-      return <SuccessScreen onReset={handleReset} bitrixDealId={finalSubmissionData?.bitrixDealId} />;
+      return <SuccessScreen onReset={handleReset} bitrixDealId={finalSubmissionData?.bitrixDealId || null} />;
   }
 
   return (

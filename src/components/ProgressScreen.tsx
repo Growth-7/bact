@@ -9,10 +9,10 @@ interface ProgressScreenProps {
 }
 
 const statusSteps = [
-    { key: 'PROCESSING', text: 'Iniciando o processamento', icon: <Loader /> },
-    { key: 'UPLOADING_FILES', text: 'Enviando arquivos para o Google Drive', icon: <FileUp /> },
-    { key: 'CREATING_DEAL', text: 'Criando registro no CRM', icon: <Building /> },
-    { key: 'COMPLETED', text: 'Processo concluído com sucesso!', icon: <PartyPopper /> }
+    { key: 'PROCESSING', text: 'Enviando...', icon: <Loader /> },
+    { key: 'UPLOADING_FILES', text: 'Enviado para o Drive', icon: <FileUp /> },
+    { key: 'CREATING_DEAL', text: 'Enviado para o Bitrix24', icon: <Building /> },
+    { key: 'COMPLETED', text: 'Quase pronto!', icon: <PartyPopper /> }
 ];
 
 type Status = 'PENDING' | 'PROCESSING' | 'UPLOADING_FILES' | 'CREATING_DEAL' | 'COMPLETED' | 'FAILED';

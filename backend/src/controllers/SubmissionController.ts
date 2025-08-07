@@ -202,7 +202,7 @@ function bufferToBase64(buffer: Buffer): string {
 }
 
 async function processSubmissionAsync(submissionId: string, body: any, files: Express.Multer.File[]): Promise<void> {
-    const { location, submissionType, documentType, nomeFamilia, idFamilia, nomeRequerente, idRequerente, userId, bitrixUserId } = body;
+    const { submissionType, documentType, idFamilia, idRequerente, bitrixUserId, nomeFamilia, nomeRequerente } = body;
 
     try {
         await prisma.submission.update({
@@ -210,14 +210,21 @@ async function processSubmissionAsync(submissionId: string, body: any, files: Ex
             data: { status: 'PROCESSING', statusDetails: 'Iniciando processamento...' },
         });
 
-        // 1. Upload para o Google Drive
         await prisma.submission.update({
             where: { id: submissionId },
             data: { status: 'UPLOADING_FILES', statusDetails: 'Criando pastas e enviando arquivos para o Google Drive...' },
         });
 
         const familiaFolderId = idFamilia ? await getOrCreateFolder(idFamilia, PARENT_FOLDER_ID) : PARENT_FOLDER_ID;
-        const targetFolderId = submissionType === 'requerente' && idRequerente ? await getOrCreateFolder(idRequerente, familiaFolderId) : familiaFolderId;
+
+        let targetFolderId: string;
+        if (submissionType === 'familia') {
+            // Cria uma subpasta com o nome do tipo de documento
+            targetFolderId = await getOrCreateFolder(documentType, familiaFolderId);
+        } else {
+            // Lógica original para 'requerente'
+            targetFolderId = idRequerente ? await getOrCreateFolder(idRequerente, familiaFolderId) : familiaFolderId;
+        }
 
         const uploadedFileUrls: string[] = [];
         const bitrixFiles: { filename: string; data: string }[] = [];
@@ -242,7 +249,6 @@ async function processSubmissionAsync(submissionId: string, body: any, files: Ex
             data: { fileUrls: uploadedFileUrls },
         });
 
-        // 2. Criar Deal no Bitrix
         await prisma.submission.update({
             where: { id: submissionId },
             data: { status: 'CREATING_DEAL', statusDetails: 'Enviando informações para o CRM...' },
@@ -251,7 +257,7 @@ async function processSubmissionAsync(submissionId: string, body: any, files: Ex
         const BITRIX_WEBHOOK_URL = process.env.BITRIX_WEBHOOK_URL;
         if (!BITRIX_WEBHOOK_URL) throw new Error("Webhook do Bitrix24 não configurado.");
 
-        const bitrixDealTitle = `${documentType} - ${nomeFamilia || nomeRequerente}`;
+        const bitrixDealTitle = `${documentType} - ${submissionType === 'familia' ? nomeFamilia : nomeRequerente || nomeFamilia}`;
         const bitrixData = {
             entityTypeId: 1132,
             fields: {
@@ -267,7 +273,6 @@ async function processSubmissionAsync(submissionId: string, body: any, files: Ex
         const bitrixResponse = await axios.post(`${BITRIX_WEBHOOK_URL}crm.item.add.json`, bitrixData);
         const bitrixDealId = bitrixResponse.data.result.item.id;
 
-        // 3. Finalizar
         await prisma.submission.update({
             where: { id: submissionId },
             data: {
@@ -291,7 +296,8 @@ async function processSubmissionAsync(submissionId: string, body: any, files: Ex
 }
 
 export const handleSubmission = async (req: Request, res: Response) => {
-    const { userId, location, submissionType, documentType, nomeFamilia, idFamilia, nomeRequerente, idRequerente } = req.body;
+    const { userId, location, submissionType, documentType, nomeFamilia, idFamilia } = req.body;
+    let { nomeRequerente, idRequerente } = req.body;
 
     if (!userId) {
         return res.status(400).json({ success: false, message: 'ID do usuário é obrigatório.' });
@@ -301,8 +307,13 @@ export const handleSubmission = async (req: Request, res: Response) => {
         return res.status(400).json({ success: false, message: 'Nenhum arquivo enviado.' });
     }
 
+    // Se o tipo for 'familia', anula os dados do requerente
+    if (submissionType === 'familia') {
+        nomeRequerente = null;
+        idRequerente = null;
+    }
+
     try {
-        // Cria a submissão inicial com status PENDING
         const submission = await prisma.submission.create({
             data: {
                 userId,
@@ -313,16 +324,14 @@ export const handleSubmission = async (req: Request, res: Response) => {
                 idFamilia: idFamilia || '',
                 nomeRequerente,
                 idRequerente,
-                fileUrls: [], // Começa vazio
+                fileUrls: [],
                 status: 'PENDING',
                 statusDetails: 'Aguardando início do processamento.',
             },
         });
 
-        // Inicia o processamento em background
         processSubmissionAsync(submission.id, req.body, files);
 
-        // Retorna a resposta imediata para o cliente
         res.status(202).json({
             success: true,
             message: 'Submissão recebida e está sendo processada.',
