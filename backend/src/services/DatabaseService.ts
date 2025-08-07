@@ -1,4 +1,4 @@
-import { PrismaClient, type User, type Submission } from '@prisma/client';
+import { PrismaClient, type User, type Submission, type SubmissionStatus } from '@prisma/client';
 import { DatabaseConnection } from '../config/DatabaseConnection.js';
 import { SubmissionData } from '../models/SubmissionData.js';
 
@@ -55,9 +55,9 @@ export class DatabaseService {
           location: submissionData.getLocation(),
           submissionType: submissionData.getSubmissionType(),
           documentType: submissionData.getDocumentType(),
-          fileUrls: submissionData.getFileUrls(), // Corrigido de fileUrl
+          fileUrls: submissionData.getFileUrls(),
           bitrixDealId: submissionData.getBitrixDealId(),
-          status: submissionData.getStatus(),
+          status: submissionData.getStatus() as SubmissionStatus, // Type assertion
           userId: userId,
           nomeFamilia: submissionData.getNomeFamilia(),
           idFamilia: submissionData.getIdFamilia(),
@@ -88,7 +88,7 @@ export class DatabaseService {
 
   async updateSubmissionStatus(
     submissionId: string,
-    status: string
+    status: SubmissionStatus // Alterado de string para SubmissionStatus
   ): Promise<void> {
     try {
       await this.prisma.submission.update({
