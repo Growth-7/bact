@@ -112,7 +112,7 @@ export class AuthController {
       const headers = getValidationApiHeaders();
       const API_URL = process.env.VALIDATION_SUPABASE_URL;
       const { data } = await axios.get(
-        `${API_URL}/customer?select=id,slug&familia_id=eq.${familyId}`,
+        `${API_URL}/rest/v1/customer?select=id,slug&familia_id=eq.${familyId}`,
         { headers }
       );
       if (!data) {
@@ -126,6 +126,39 @@ export class AuthController {
     } catch (error) {
       console.error('Erro ao buscar membros da família:', error);
       return res.status(500).json({ success: false, message: 'Erro ao buscar membros da família.' });
+    }
+  }
+
+  async addRequerente(req: Request, res: Response): Promise<Response | void> {
+    const { familyName, idFamilia, requerenteName } = req.body;
+
+    if (!familyName || !idFamilia || !requerenteName) {
+      return res.status(400).json({ success: false, message: 'Dados insuficientes para adicionar requerente.' });
+    }
+    
+    if (!isUUID(idFamilia)) {
+      return res.status(400).json({ success: false, message: 'Formato de ID da Família inválido.' });
+    }
+
+    try {
+      const supabaseUrl = process.env.VALIDATION_SUPABASE_URL;
+      const functionUrl = `${supabaseUrl}/functions/v1/addRequerente`;
+      const headers = getValidationApiHeaders();
+
+      const response = await axios.post(functionUrl, {
+        familyName,
+        idFamilia,
+        requerenteName
+      }, { headers });
+
+      if (response.data && response.data.idRequerente) {
+        return res.status(201).json({ success: true, idRequerente: response.data.idRequerente });
+      } else {
+        throw new Error(response.data.error || 'Falha ao criar novo requerente no Supabase.');
+      }
+    } catch (error: any) {
+      console.error('Erro ao adicionar requerente:', error.response?.data || error.message);
+      return res.status(500).json({ success: false, message: error.response?.data?.error || 'Erro interno ao adicionar requerente.' });
     }
   }
 
