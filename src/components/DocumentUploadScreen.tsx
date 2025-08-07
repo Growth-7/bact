@@ -160,46 +160,48 @@ export default function DocumentUploadScreen({ location, onNext, onBack }: Docum
             </div>
             {submissionType === 'requerente' && location === 'alphaville' && (
               <div>
-                <label htmlFor="requerente" className="block text-sm font-medium mb-2">Selecione o Requerente *</label>
-                <div className="flex items-center gap-2">
-                  <select 
-                    id="requerente" 
-                    value={formData.idRequerente || ''} 
-                    onChange={handleApplicantChange} 
-                    className="flex-grow w-full p-3 border rounded-lg bg-white" 
-                    disabled={isFetchingMembers || isCreatingRequerente}
-                  >
-                    {isFetchingMembers ? (
-                      <option>Buscando...</option> 
-                    ) : (
-                      familyMembers.length > 0 ? (
-                        familyMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>) 
+                <label htmlFor="requerente" className="block text-sm font-medium mb-2">
+                  {isCreatingRequerente ? 'Novo Requerente' : 'Selecione o Requerente *'}
+                </label>
+                {!isCreatingRequerente ? (
+                  <div className="flex items-center gap-2">
+                    <select 
+                      id="requerente" 
+                      value={formData.idRequerente || ''} 
+                      onChange={handleApplicantChange} 
+                      className="flex-grow w-full p-3 border rounded-lg bg-white" 
+                      disabled={isFetchingMembers}
+                    >
+                      {isFetchingMembers ? (
+                        <option>Buscando...</option> 
                       ) : (
-                        <option disabled value="">Nenhum membro encontrado</option>
-                      )
-                    )}
-                  </select>
-                  <button 
-                    type="button" 
-                    onClick={() => setIsCreatingRequerente(true)}
-                    className="bg-blue-600 text-white p-3 rounded-lg flex-shrink-0"
-                    disabled={isFetchingMembers}
-                  >
-                    Adicionar
-                  </button>
-                </div>
-              </div>
-            )}
-            {isCreatingRequerente && (
-                <div className="flex items-end gap-2">
-                    <div className="flex-grow">
-                        <label htmlFor="novoRequerenteNome" className="block text-sm font-medium mb-2">Nome do Novo Requerente *</label>
-                        <input id="novoRequerenteNome" type="text" value={novoRequerenteNome} onChange={(e) => setNovoRequerenteNome(e.target.value)} className="w-full p-3 border rounded-lg" placeholder="Digite o nome completo do requerente" />
-                    </div>
-                    <button type="button" onClick={() => setIsCreatingRequerente(false)} className="bg-slate-200 text-slate-800 p-3 rounded-lg">
-                        Cancelar
+                        familyMembers.length > 0 ? (
+                          familyMembers.map(m => <option key={m.id} value={m.id}>{m.name}</option>) 
+                        ) : (
+                          <option disabled value="">Nenhum membro encontrado</option>
+                        )
+                      )}
+                    </select>
+                    <button 
+                      type="button" 
+                      onClick={() => setIsCreatingRequerente(true)}
+                      className="bg-blue-600 text-white p-3 rounded-lg flex-shrink-0"
+                      disabled={isFetchingMembers}
+                    >
+                      Adicionar
                     </button>
-                </div>
+                  </div>
+                ) : (
+                  <div className="flex items-end gap-2">
+                      <div className="flex-grow">
+                          <input id="novoRequerenteNome" type="text" value={novoRequerenteNome} onChange={(e) => setNovoRequerenteNome(e.target.value)} className="w-full p-3 border rounded-lg" placeholder="Digite o nome completo do requerente" />
+                      </div>
+                      <button type="button" onClick={() => setIsCreatingRequerente(false)} className="bg-slate-200 text-slate-800 p-3 rounded-lg">
+                          Cancelar
+                      </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
           
