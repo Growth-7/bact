@@ -8,7 +8,7 @@ interface ReviewScreenProps {
   data: DocumentSubmission;
   user: UserType;
   onBack: () => void;
-  onSubmit: (result: { bitrixDealId: string }) => void;
+  onSubmit: (result: { submissionId: string }) => void; // Alterado
 }
 
 const InfoCard = ({ icon, label, value, capitalize = false }: { icon: React.ReactNode, label: string, value?: string, capitalize?: boolean }) => (
@@ -32,7 +32,6 @@ export default function ReviewScreen({ data, user, onBack, onSubmit }: ReviewScr
     setFileToPreview(file);
   };
 
-
   const handleSubmit = async () => {
     setIsSubmitting(true);
     setError(null);
@@ -45,7 +44,6 @@ export default function ReviewScreen({ data, user, onBack, onSubmit }: ReviewScr
         formData.append(key, value as string);
       }
     });
-    // Adiciona ambos os IDs
     formData.append('userId', user.id);
     formData.append('bitrixUserId', user.user_id_bitrix24);
 
@@ -55,7 +53,8 @@ export default function ReviewScreen({ data, user, onBack, onSubmit }: ReviewScr
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       if (response.data.success) {
-        onSubmit({ bitrixDealId: response.data.bitrixDealId });
+        // Envia o ID da submissão para o App.tsx
+        onSubmit({ submissionId: response.data.submissionId });
       } else {
         setError(response.data.message || 'Ocorreu um erro no envio.');
       }

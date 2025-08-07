@@ -31,7 +31,8 @@ model Submission {
   
   fileUrls        String[]
   bitrixDealId    String?
-  status          String   @default("Pending")
+  status          SubmissionStatus @default(PENDING)
+  statusDetails   String?
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -39,3 +40,13 @@ model Submission {
   user            User     @relation(fields: [userId], references: [id])
   userId          String
 }
+
+enum SubmissionStatus {
+  PENDING
+  PROCESSING
+  UPLOADING_FILES
+  CREATING_DEAL
+  COMPLETED
+  FAILED
+}
+

@@ -66,7 +66,12 @@ export default function DocumentUploadScreen({ location, onNext, onBack, initial
           const { data } = await axios.get(`${apiUrl}/api/auth/family-members/${formData.idFamilia}`);
           setFamilyMembers(data.success ? data.members : []);
           if (data.success && data.members.length > 0) {
-            setFormData(prev => ({ ...prev, idRequerente: data.members[0].id, nomeRequerente: data.members[0].name }));
+            setFormData(prev => ({ 
+              ...prev, 
+              nomeFamilia: data.familyName || prev.nomeFamilia,
+              idRequerente: data.members[0].id, 
+              nomeRequerente: data.members[0].name 
+            }));
           } else {
             setFormData(prev => ({...prev, idRequerente: '', nomeRequerente: ''}));
           }

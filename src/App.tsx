@@ -6,10 +6,11 @@ import DocumentUploadScreen from './components/DocumentUploadScreen';
 import ReviewScreen from './components/ReviewScreen';
 import SuccessScreen from './components/SuccessScreen';
 import ForgotPasswordScreen from './components/ForgotPasswordScreen';
+import ProgressScreen from './components/ProgressScreen'; // Importar
 import { DocumentSubmission, User } from './types';
 import { jwtDecode } from 'jwt-decode';
 
-type Screen = 'login' | 'register' | 'forgotPassword' | 'location' | 'upload' | 'review' | 'success';
+type Screen = 'login' | 'register' | 'forgotPassword' | 'location' | 'upload' | 'review' | 'progress' | 'success'; // Adicionar 'progress'
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('login');
@@ -17,7 +18,8 @@ function App() {
   const [token, setToken] = useState<string | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<'carrao' | 'alphaville' | null>(null);
   const [documentData, setDocumentData] = useState<DocumentSubmission | null>(null);
-  const [bitrixDealId, setBitrixDealId] = useState<string | null>(null);
+  const [submissionId, setSubmissionId] = useState<string | null>(null); // Novo estado
+  const [finalSubmissionData, setFinalSubmissionData] = useState<{ bitrixDealId?: string; fileUrls?: string[] } | null>(null);
 
   React.useEffect(() => {
     const storedToken = localStorage.getItem('authToken');
@@ -31,10 +33,10 @@ function App() {
       const decodedUser: User = jwtDecode(tkn);
       setUser(decodedUser);
       setToken(tkn);
+      localStorage.setItem('authToken', tkn);
       setCurrentScreen('location');
     } catch (error) {
       console.error("Failed to decode token:", error);
-      // Se o token for inválido, deslogue
       handleLogout();
     }
   };
@@ -44,8 +46,13 @@ function App() {
     setCurrentScreen('review');
   };
 
-  const handleFinalSubmit = (submissionResult: { bitrixDealId: string }) => {
-    setBitrixDealId(submissionResult.bitrixDealId);
+  const handleFinalSubmit = (result: { submissionId: string }) => {
+    setSubmissionId(result.submissionId);
+    setCurrentScreen('progress');
+  };
+
+  const handleCompletion = (data: { bitrixDealId?: string; fileUrls?: string[] }) => {
+    setFinalSubmissionData(data);
     setCurrentScreen('success');
   };
 
@@ -53,7 +60,8 @@ function App() {
     setCurrentScreen('location');
     setDocumentData(null);
     setSelectedLocation(null);
-    setBitrixDealId(null);
+    setSubmissionId(null);
+    setFinalSubmissionData(null);
   };
   
   const handleLogout = () => {
@@ -78,13 +86,17 @@ function App() {
       }
       break;
     case 'review':
-      // Garante que o usuário existe antes de renderizar
       if (documentData && user) {
         return <ReviewScreen data={documentData} user={user} onBack={() => setCurrentScreen('upload')} onSubmit={handleFinalSubmit} />;
       }
       break;
+    case 'progress':
+      if (submissionId) {
+        return <ProgressScreen submissionId={submissionId} onComplete={handleCompletion} />;
+      }
+      break;
     case 'success':
-      return <SuccessScreen onReset={handleReset} bitrixDealId={bitrixDealId} />;
+      return <SuccessScreen onReset={handleReset} bitrixDealId={finalSubmissionData?.bitrixDealId} />;
   }
 
   return (

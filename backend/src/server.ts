@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import multer from 'multer';
 import authRoutes from './routes/AuthRoutes.js';
-import { handleSubmission } from './controllers/SubmissionController.js';
+import submissionRoutes from './routes/SubmissionRoutes.js'; // Importar as novas rotas
 import { FileUploadMiddleware } from './middleware/FileUploadMiddleware.js';
 
 dotenv.config();
@@ -16,9 +16,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Upload middleware
-const upload = FileUploadMiddleware.create();
-
 // Health check
 app.get('/', (req: Request, res: Response) => {
   res.json({
@@ -29,12 +26,7 @@ app.get('/', (req: Request, res: Response) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
-
-app.post(
-  '/api/submissions',
-  upload.array('files', FileUploadMiddleware.MAX_FILES), // Aceita múltiplos arquivos
-  handleSubmission
-);
+app.use('/api/submissions', submissionRoutes); // Usar as rotas de submissão
 
 // Error handling middleware
 app.use((error: any, req: Request, res: Response, next: NextFunction) => {
