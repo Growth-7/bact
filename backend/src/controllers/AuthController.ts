@@ -152,9 +152,10 @@ export class AuthController {
         customer_type: 'req'
       }, { headers });
 
-      if (response.data && response.data.idRequerente) {
-        return res.status(201).json({ success: true, idRequerente: response.data.idRequerente });
+      if (response.data && response.data.id) {
+        return res.status(201).json({ success: true, idRequerente: response.data.id });
       } else {
+        // Se a função Supabase retornar 200 mas sem um ID, ou com uma resposta inesperada
         throw new Error(response.data.error || 'Falha ao criar novo requerente no Supabase.');
       }
     } catch (error: any) {
