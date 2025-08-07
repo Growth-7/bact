@@ -2,8 +2,8 @@ import multer from 'multer';
 
 export class FileUploadMiddleware {
   private static readonly ALLOWED_MIME_TYPES = ['application/pdf'];
-  private static readonly MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
-  static readonly MAX_FILES = 10;
+  private static readonly MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+  static readonly MAX_FILES = 20;
 
   static create() {
     const storage = multer.memoryStorage();

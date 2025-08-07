@@ -112,7 +112,7 @@ export class AuthController {
       const headers = getValidationApiHeaders();
       const API_URL = process.env.VALIDATION_SUPABASE_URL;
       const { data } = await axios.get(
-        `${API_URL}/rest/v1/customer?select=id,slug&familia_id=eq.${familyId}`,
+        `${API_URL}/rest/v1/customer?select=id,slug,customer_type&familia_id=eq.${familyId}`,
         { headers }
       );
       if (!data) {
@@ -121,6 +121,7 @@ export class AuthController {
       const members = data.map((member: any) => ({
         id: member.id,
         name: member.slug,
+        customer_type: member.customer_type,
       }));
       return res.status(200).json({ success: true, members });
     } catch (error) {
