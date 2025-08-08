@@ -6,11 +6,13 @@ import DocumentUploadScreen from './components/DocumentUploadScreen';
 import ReviewScreen from './components/ReviewScreen';
 import SuccessScreen from './components/SuccessScreen';
 import ForgotPasswordScreen from './components/ForgotPasswordScreen';
+import ResetPasswordScreen from './components/ResetPasswordScreen';
+import PasswordResetSuccessScreen from './components/PasswordResetSuccessScreen';
 import ProgressScreen from './components/ProgressScreen'; // Importar
 import { DocumentSubmission, User } from './types';
 import { jwtDecode } from 'jwt-decode';
 
-type Screen = 'login' | 'register' | 'forgotPassword' | 'location' | 'upload' | 'review' | 'progress' | 'success'; // Adicionar 'progress'
+type Screen = 'login' | 'register' | 'forgotPassword' | 'resetPassword' | 'passwordResetSuccess' | 'location' | 'upload' | 'review' | 'progress' | 'success';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('login');
@@ -20,6 +22,7 @@ function App() {
   const [documentData, setDocumentData] = useState<DocumentSubmission | null>(null);
   const [submissionId, setSubmissionId] = useState<string | null>(null); // Novo estado
   const [finalSubmissionData, setFinalSubmissionData] = useState<{ bitrixDealId?: string; fileUrls?: string[] } | null>(null);
+  const [pendingResetData, setPendingResetData] = useState<{ username: string; birthDate: string } | null>(null);
 
   React.useEffect(() => {
     const storedToken = localStorage.getItem('authToken');
@@ -77,7 +80,29 @@ function App() {
     case 'register':
       return <RegisterScreen onRegisterSuccess={() => setCurrentScreen('login')} onSwitchToLogin={() => setCurrentScreen('login')} />;
     case 'forgotPassword':
-      return <ForgotPasswordScreen onSwitchToLogin={() => setCurrentScreen('login')} />;
+      return (
+        <ForgotPasswordScreen
+          onSwitchToLogin={() => setCurrentScreen('login')}
+          onValidated={({ username, birthDate }) => {
+            setPendingResetData({ username, birthDate });
+            setCurrentScreen('resetPassword');
+          }}
+        />
+      );
+    case 'resetPassword':
+      if (pendingResetData) {
+        return (
+          <ResetPasswordScreen
+            username={pendingResetData.username}
+            birthDate={pendingResetData.birthDate}
+            onSuccess={() => setCurrentScreen('passwordResetSuccess')}
+            onBack={() => setCurrentScreen('forgotPassword')}
+          />
+        );
+      }
+      break;
+    case 'passwordResetSuccess':
+      return <PasswordResetSuccessScreen onGoToLogin={() => setCurrentScreen('login')} />;
     case 'location':
       return <LocationSelectionScreen onNext={(loc) => { setSelectedLocation(loc); setCurrentScreen('upload'); }} onBack={handleLogout} />;
     case 'upload':

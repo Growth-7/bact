@@ -4,9 +4,10 @@ import Layout from './Layout';
 
 interface ForgotPasswordScreenProps {
   onSwitchToLogin: () => void;
+  onValidated: (payload: { username: string; birthDate: string }) => void;
 }
 
-export default function ForgotPasswordScreen({ onSwitchToLogin }: ForgotPasswordScreenProps) {
+export default function ForgotPasswordScreen({ onSwitchToLogin, onValidated }: ForgotPasswordScreenProps) {
   const [username, setUsername] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -47,6 +48,7 @@ export default function ForgotPasswordScreen({ onSwitchToLogin }: ForgotPassword
       }
       setIsValidated(true);
       setSuccessMessage('Dados validados. Defina sua nova senha.');
+      onValidated({ username, birthDate });
     } catch (err) {
       setError('Não foi possível conectar ao servidor.');
     } finally {
