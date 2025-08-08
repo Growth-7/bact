@@ -8,6 +8,13 @@ export type SubmissionType = 'requerente' | 'familia';
 
 export type LocationType = 'carrao' | 'alphaville';
 
+export interface Family {
+  id: string;
+  name: string;
+  members: string[];
+  documentsCount: number;
+}
+
 export const REQUERENTE_DOCUMENT_TYPES = [
   'Certidão de Nascimento',
   'Certidão de Casamento',
@@ -25,6 +32,19 @@ export type RequerenteDocumentType = typeof REQUERENTE_DOCUMENT_TYPES[number];
 export type FamiliaDocumentType = typeof FAMILIA_DOCUMENT_TYPES[number];
 export type DocumentType = RequerenteDocumentType | FamiliaDocumentType;
 
+export interface DocumentTypeOption {
+  value: string;
+  label: string;
+}
+
+export const DOCUMENT_TYPES: DocumentTypeOption[] = (
+  Array.from(REQUERENTE_DOCUMENT_TYPES) as string[]
+).map((name) => ({ value: name, label: name }));
+
+export const FAMILY_DOCUMENT_TYPES: DocumentTypeOption[] = (
+  Array.from(FAMILIA_DOCUMENT_TYPES) as string[]
+).map((name) => ({ value: name, label: name }));
+
 export interface DocumentSubmission {
   location: LocationType;
   submissionType: SubmissionType;
@@ -39,4 +59,13 @@ export interface DocumentSubmission {
   
   documentType?: DocumentType;
   files: File[];
+
+  // Campos auxiliares (para telas de listagem/preview)
+  id?: string;
+  category?: 'family' | 'requester';
+  requesterName?: string;
+  file?: File;
+  fileName?: string;
+  uploadDate?: Date;
+  fileSize?: number;
 }

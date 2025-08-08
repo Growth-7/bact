@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import LoginScreen from './components/LoginScreen';
 import RegisterScreen from './components/RegisterScreen';
 import LocationSelectionScreen from './components/LocationSelectionScreen';
@@ -9,10 +9,12 @@ import ForgotPasswordScreen from './components/ForgotPasswordScreen';
 import ResetPasswordScreen from './components/ResetPasswordScreen';
 import PasswordResetSuccessScreen from './components/PasswordResetSuccessScreen';
 import ProgressScreen from './components/ProgressScreen'; // Importar
+import FamilySearchScreen from './components/FamilySearchScreen';
+import DocumentsListScreen from './components/DocumentsListScreen';
 import { DocumentSubmission, User } from './types';
 import { jwtDecode } from 'jwt-decode';
 
-type Screen = 'login' | 'register' | 'forgotPassword' | 'resetPassword' | 'passwordResetSuccess' | 'location' | 'upload' | 'review' | 'progress' | 'success';
+type Screen = 'login' | 'register' | 'forgotPassword' | 'resetPassword' | 'passwordResetSuccess' | 'familySearch' | 'documentsList' | 'location' | 'upload' | 'review' | 'progress' | 'success';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('login');
@@ -24,7 +26,7 @@ function App() {
   const [finalSubmissionData, setFinalSubmissionData] = useState<{ bitrixDealId?: string; fileUrls?: string[] } | null>(null);
   const [pendingResetData, setPendingResetData] = useState<{ username: string; birthDate: string } | null>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const storedToken = localStorage.getItem('authToken');
     if (storedToken) {
       handleLogin(storedToken);
@@ -37,7 +39,7 @@ function App() {
       setUser(decodedUser);
       setToken(tkn);
       localStorage.setItem('authToken', tkn);
-      setCurrentScreen('location');
+      setCurrentScreen('familySearch');
     } catch (error) {
       console.error("Failed to decode token:", error);
       handleLogout();
@@ -60,11 +62,57 @@ function App() {
   };
 
   const handleReset = () => {
-    setCurrentScreen('location');
+    setCurrentScreen('familySearch');
     setDocumentData(null);
     setSelectedLocation(null);
     setSubmissionId(null);
     setFinalSubmissionData(null);
+  };
+
+  // Fluxo de documentos por família
+  const [selectedFamily, setSelectedFamily] = useState<{ id: string; name: string; members: string[]; documentsCount: number } | null>(null);
+  const [familyDocuments, setFamilyDocuments] = useState<DocumentSubmission[]>([]);
+
+  const handleFamilySelect = async (family: { id: string; name: string; members: string[]; documentsCount: number }) => {
+    setSelectedFamily({ ...family, members: family.members || [] });
+    try {
+      const apiUrl = (import.meta as any).env?.VITE_API_URL || '';
+      const response = await fetch(`${apiUrl}/api/auth/family-members/${family.id}`);
+      const data = await response.json();
+      if (response.ok && data.success) {
+        const members: string[] = (data.members || []).map((m: any) => m.name).filter(Boolean);
+        setSelectedFamily(prev => prev ? { ...prev, name: data.familyName || prev.name, members } : prev);
+      }
+    } catch (_) {
+      // silencioso
+    }
+    setCurrentScreen('documentsList');
+  };
+
+  const handleAddFamilyDocument = () => {
+    if (!selectedFamily) return;
+    const initial: DocumentSubmission = {
+      location: 'alphaville',
+      submissionType: 'familia',
+      nomeFamilia: selectedFamily.name,
+      idFamilia: selectedFamily.id,
+      files: [],
+    };
+    setDocumentData(initial);
+    setCurrentScreen('upload');
+  };
+
+  const handleAddRequesterDocument = () => {
+    if (!selectedFamily) return;
+    const initial: DocumentSubmission = {
+      location: 'alphaville',
+      submissionType: 'requerente',
+      nomeFamilia: selectedFamily.name,
+      idFamilia: selectedFamily.id,
+      files: [],
+    };
+    setDocumentData(initial);
+    setCurrentScreen('upload');
   };
   
   const handleLogout = () => {
@@ -103,13 +151,37 @@ function App() {
       break;
     case 'passwordResetSuccess':
       return <PasswordResetSuccessScreen onGoToLogin={() => setCurrentScreen('login')} />;
+    case 'familySearch':
+      return (
+        <FamilySearchScreen
+          onFamilySelect={handleFamilySelect}
+          onBack={() => setCurrentScreen('login')}
+        />
+      );
+    case 'documentsList':
+      if (selectedFamily) {
+        return (
+          <DocumentsListScreen
+            family={selectedFamily}
+            documents={familyDocuments}
+            onBack={() => setCurrentScreen('familySearch')}
+            onAddDocument={handleAddRequesterDocument}
+            onAddFamilyDocument={handleAddFamilyDocument}
+          />
+        );
+      }
+      break;
     case 'location':
       return <LocationSelectionScreen onNext={(loc) => { setSelectedLocation(loc); setCurrentScreen('upload'); }} onBack={handleLogout} />;
     case 'upload':
-      if (selectedLocation) {
-        return <DocumentUploadScreen location={selectedLocation} onNext={handleDocumentSubmit} onBack={() => setCurrentScreen('location')} initialData={documentData} />;
-      }
-      break;
+      return (
+        <DocumentUploadScreen
+          location={selectedLocation || 'alphaville'}
+          onNext={handleDocumentSubmit}
+          onBack={() => setCurrentScreen(selectedFamily ? 'documentsList' : 'location')}
+          initialData={documentData}
+        />
+      );
     case 'review':
       if (documentData && user) {
         return <ReviewScreen data={documentData} user={user} onBack={() => setCurrentScreen('upload')} onSubmit={handleFinalSubmit} />;

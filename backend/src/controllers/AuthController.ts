@@ -135,6 +135,27 @@ export class AuthController {
     }
   }
 
+  async searchFamilies(req: Request, res: Response): Promise<Response | void> {
+    const { q } = req.query as { q?: string };
+    if (!q || q.trim().length === 0) {
+      return res.status(400).json({ success: false, message: 'Parâmetro de busca (q) é obrigatório.' });
+    }
+    try {
+      const headers = getValidationApiHeaders();
+      const API_URL = process.env.VALIDATION_SUPABASE_URL;
+      const encodedQ = encodeURIComponent(`familiaName.ilike.%${q}%`,);
+      const orFilter = encodeURIComponent(
+        `familiaName.ilike.%${q}%,familiaId.ilike.%${q}%,bitrixId.ilike.%${q}%,requerenteId.ilike.%${q}%`
+      );
+      const url = `${API_URL}/rest/v1/family_cache?select=*&or=(${orFilter})&limit=50`;
+      const { data } = await axios.get(url, { headers });
+      return res.status(200).json({ success: true, families: data });
+    } catch (error) {
+      console.error('Erro ao buscar famílias:', error);
+      return res.status(500).json({ success: false, message: 'Erro ao buscar famílias.' });
+    }
+  }
+
   async addRequerente(req: Request, res: Response): Promise<Response | void> {
     const { familyName, idFamilia, requerenteName } = req.body;
 
