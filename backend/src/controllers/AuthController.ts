@@ -193,9 +193,8 @@ export class AuthController {
         return res.status(401).json({ success: false, message: 'Credenciais inválidas.' });
       }
 
-      // TODO: Implementar lógica de geração de token e envio de email
-      // Por enquanto, apenas retornamos sucesso para o frontend
-      return res.status(200).json({ success: true, message: 'Se o usuário existir e os dados estiverem corretos, um email de redefinição será enviado.' });
+      // Validação bem-sucedida: permitir redefinição imediata no frontend
+      return res.status(200).json({ success: true, message: 'Dados validados. Você pode redefinir sua senha agora.' });
 
     } catch (error) {
       console.error('Erro no processo de esqueci a senha:', error);
