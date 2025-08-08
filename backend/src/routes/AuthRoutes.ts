@@ -10,5 +10,6 @@ authRoutes.post('/validate-ids', (req, res) => authController.validateIds(req, r
 authRoutes.get('/family-members/:familyId', (req, res) => authController.getFamilyMembers(req, res));
 authRoutes.post('/requerente', (req, res) => authController.addRequerente(req, res));
 authRoutes.post('/forgot-password', (req, res) => authController.forgotPassword(req, res));
+authRoutes.post('/reset-password', (req, res) => authController.resetPassword(req, res));
 
 export default authRoutes;

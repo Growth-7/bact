@@ -202,5 +202,41 @@ export class AuthController {
       return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
   }
+
+  async resetPassword(req: Request, res: Response): Promise<Response | void> {
+    const { username, birthDate, newPassword } = req.body;
+
+    if (!username || !birthDate || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Nome de usuário, data de nascimento e nova senha são obrigatórios.' });
+    }
+
+    if (typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'A nova senha deve ter pelo menos 6 caracteres.' });
+    }
+
+    try {
+      const user = await prisma.user.findUnique({ where: { username } });
+
+      if (!user || !user.birth_date) {
+        return res.status(401).json({ success: false, message: 'Credenciais inválidas.' });
+      }
+
+      const userBirthDate = new Date(user.birth_date);
+      const providedBirthDate = new Date(birthDate);
+
+      const isSameDate = userBirthDate.toISOString().slice(0, 10) === providedBirthDate.toISOString().slice(0, 10);
+      if (!isSameDate) {
+        return res.status(401).json({ success: false, message: 'Credenciais inválidas.' });
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await prisma.user.update({ where: { username }, data: { password: hashedPassword } });
+
+      return res.status(200).json({ success: true, message: 'Senha redefinida com sucesso.' });
+    } catch (error) {
+      console.error('Erro ao redefinir senha:', error);
+      return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+  }
 }
 
