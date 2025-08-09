@@ -359,15 +359,18 @@ function App() {
       return <PasswordResetSuccessScreen onGoToLogin={() => setCurrentScreen('login')} />;
     case 'familySearch':
       return (
-        <FamilySearchScreen
+        <div className="fade-in-slow">
+          <FamilySearchScreen
           onFamilySelect={handleFamilySelect}
           onBack={() => setCurrentScreen('login')}
-        />
+          />
+        </div>
       );
     case 'documentsList':
       if (selectedFamily) {
         return (
-          <DocumentsListScreen
+          <div className="fade-in">
+            <DocumentsListScreen
             family={selectedFamily}
             documents={familyDocuments}
             onBack={() => { setCurrentScreen('familySearch'); replaceUrl('/'); }}
@@ -376,7 +379,8 @@ function App() {
             members={familyMembers}
             onAddDocumentForRequester={handleAddRequesterDocumentFor}
             onCompleteFamily={handleCompleteFamily}
-          />
+            />
+          </div>
         );
       }
       break;
@@ -384,26 +388,28 @@ function App() {
       return <LocationSelectionScreen onNext={(loc) => { setSelectedLocation(loc); setCurrentScreen('upload'); }} onBack={handleLogout} />;
     case 'upload':
       return (
-        <DocumentUploadScreen
+        <div className="fade-up">
+          <DocumentUploadScreen
           location={selectedLocation || 'alphaville'}
           onNext={handleDocumentSubmit}
           onBack={() => setCurrentScreen(selectedFamily ? 'documentsList' : 'location')}
           initialData={documentData}
           existingDocuments={familyDocuments}
-        />
+          />
+        </div>
       );
     case 'review':
       if (documentData && user) {
-        return <ReviewScreen data={documentData} user={user} onBack={() => setCurrentScreen('upload')} onSubmit={handleFinalSubmit} />;
+        return <div className="fade-in"><ReviewScreen data={documentData} user={user} onBack={() => setCurrentScreen('upload')} onSubmit={handleFinalSubmit} /></div>;
       }
       break;
     case 'progress':
       if (submissionId) {
-        return <ProgressScreen submissionId={submissionId} onComplete={handleCompletion} />;
+        return <div className="fade-in"><ProgressScreen submissionId={submissionId} onComplete={handleCompletion} /></div>;
       }
       break;
     case 'success':
-      return <SuccessScreen onReset={handleReset} bitrixDealId={finalSubmissionData?.bitrixDealId || null} />;
+      return <div className="fade-down"><SuccessScreen onReset={handleReset} bitrixDealId={finalSubmissionData?.bitrixDealId || null} /></div>;
   }
 
   return (

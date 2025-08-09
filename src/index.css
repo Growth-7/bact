@@ -1,3 +1,55 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Transições e animações suaves para conforto visual */
+@layer utilities {
+  .fade-in {
+    animation: fadeIn 220ms ease-out both;
+  }
+  .fade-in-slow {
+    animation: fadeIn 380ms ease-out both;
+  }
+  .fade-up {
+    animation: fadeUp 260ms ease-out both;
+  }
+  .fade-down {
+    animation: fadeDown 260ms ease-out both;
+  }
+  .blur-in {
+    animation: blurIn 240ms ease-out both;
+  }
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background-color: rgb(241 245 249); /* slate-100 */
+  }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+    animation: shimmer 1.2s infinite;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0 }
+  to { opacity: 1 }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px) }
+  to { opacity: 1; transform: translateY(0) }
+}
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-6px) }
+  to { opacity: 1; transform: translateY(0) }
+}
+@keyframes blurIn {
+  from { opacity: 0; filter: blur(6px) }
+  to { opacity: 1; filter: blur(0) }
+}
+@keyframes shimmer {
+  100% { transform: translateX(100%) }
+}

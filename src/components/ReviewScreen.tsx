@@ -85,7 +85,7 @@ export default function ReviewScreen({ data, user, onBack, onSubmit }: ReviewScr
 
   return (
     <Layout title="Conferência das Informações">
-      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
+      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 fade-in">
         <p className="text-slate-600 mb-6">Revise as informações abaixo antes de enviar.</p>
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -210,7 +210,15 @@ export default function UserProfile({ user, stats }: UserProfileProps) {
               </div>
               <div>
                 <h3 className="font-bold text-lg">{user.username}</h3>
-                <p className="text-blue-100 text-sm">Perfil do Usuário</p>
+                <p className="text-blue-100 text-sm">
+                  {(() => {
+                    const h = new Date().getHours();
+                    const base = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+                    const d = new Date().getDay();
+                    const extra = d === 1 ? ' • Vamos começar a semana!' : d === 5 ? ' • Ótima sexta!' : '';
+                    return `${base}, ${user.username}${extra}`;
+                  })()}
+                </p>
               </div>
             </div>
             <button

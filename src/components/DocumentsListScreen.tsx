@@ -81,7 +81,7 @@ export default function DocumentsListScreen({ family, documents, members = [], o
 
   return (
     <Layout title={`Documentos - Família ${family.name}`}>
-      <div className="animate-slideIn">
+        <div className="fade-in">
         {/* Header da Família - Maior e mais destacado */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl shadow-xl p-8 mb-8 transform hover:scale-[1.02] transition-all duration-300">
           <div className="flex items-center justify-between">
@@ -120,7 +120,7 @@ export default function DocumentsListScreen({ family, documents, members = [], o
         </div>
 
         {/* Botão Adicionar Documento - Mais destacado */}
-        <div className="mb-12">
+        <div className="mb-12 fade-up">
           <div className="flex flex-col sm:flex-row gap-4">
             <button
               onClick={onAddFamilyDocument}

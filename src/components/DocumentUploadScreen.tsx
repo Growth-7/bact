@@ -176,7 +176,7 @@ export default function DocumentUploadScreen({ location, onNext, onBack, initial
 
   return (
     <Layout title={`Envio de Documentos - ${location.charAt(0).toUpperCase() + location.slice(1)}`}>
-      <div className="bg-white rounded-2xl shadow-xl p-8">
+      <div className="bg-white rounded-2xl shadow-xl p-8 fade-in">
         <form onSubmit={validateAndSubmit} className="space-y-8">
           {!isRequesterLocked && (
             <div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FileText } from 'lucide-react';
 import UserProfile from './UserProfile';
 import { getUserSummary } from '../services/user';
@@ -11,6 +11,18 @@ interface LayoutProps {
 export default function Layout({ children, title }: LayoutProps) {
   const [summary, setSummary] = useState<any | null>(null);
   const [user, setUser] = useState<{ id: string; username: string } | null>(null);
+  const [showGreeting, setShowGreeting] = useState(false);
+  const greeting = useMemo(() => {
+    if (!user) return '';
+    const now = new Date();
+    const hour = now.getHours();
+    const day = now.getDay(); // 0=Dom,1=Seg,...,5=Sex
+    const base = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+    let extra = '';
+    if (day === 1) extra = ' • Vamos começar a semana!';
+    if (day === 5) extra = ' • Ótima sexta!';
+    return `${base}, ${user.username}${extra}`;
+  }, [user]);
   useEffect(() => {
     // tentar extrair userId do token localStorage, se existir
     try {
@@ -22,6 +34,10 @@ export default function Layout({ children, title }: LayoutProps) {
       if (userId) {
         setUser({ id: userId, username });
         getUserSummary(userId).then((s) => s && setSummary(s)).catch(() => {});
+        // Exibir saudação breve após login/carregamento
+        setShowGreeting(true);
+        const t = setTimeout(() => setShowGreeting(false), 4000);
+        return () => clearTimeout(t);
       }
     } catch {}
   }, []);
@@ -69,6 +85,14 @@ export default function Layout({ children, title }: LayoutProps) {
           </div>
         </div>
       </header>
+
+      {user && showGreeting && (
+        <div className="bg-gradient-to-r from-blue-50 to-green-50 border-b border-slate-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+            <div className="text-slate-800 text-sm fade-in">{greeting}</div>
+          </div>
+        </div>
+      )}
       
       <main className="max-w-[70%] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {title && (

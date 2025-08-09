@@ -15,7 +15,7 @@ export default function SuccessScreen({ onReset, bitrixDealId }: SuccessScreenPr
   return (
     <Layout>
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
-        <div className="w-full max-w-md text-center">
+        <div className="w-full max-w-md text-center fade-in">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8">
             <div className="mb-6">
               <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
