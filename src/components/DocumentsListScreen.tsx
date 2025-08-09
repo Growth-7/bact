@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Eye, Download, Calendar, User, ArrowLeft, FolderOpen, Users, Building2, UserCheck } from 'lucide-react';
+import { FileText, Eye, Download, Calendar, User, ArrowLeft, FolderOpen, Users, Building2, UserCheck, Heart, Skull, Baby } from 'lucide-react';
 import Layout from './Layout';
 import { DocumentSubmission, Family, DOCUMENT_TYPES, FAMILY_DOCUMENT_TYPES, DocumentTypeOption } from '../types';
 
@@ -270,12 +270,12 @@ export default function DocumentsListScreen({ family, documents, members = [], o
                   grouped.set(key, list);
                 }
 
-                const getIconForLabel = (label: string): string => {
+                const getIconForLabel = (label: string): JSX.Element => {
                   const normalized = (label || '').toLowerCase();
-                  if (normalized.includes('nascimento')) return '👶';
-                  if (normalized.includes('casamento')) return '❤️';
-                  if (normalized.includes('óbito') || normalized.includes('obito')) return '💀';
-                  return '📄';
+                  if (normalized.includes('nascimento')) return <Baby className="w-4 h-4 text-green-600" />;
+                  if (normalized.includes('casamento')) return <Heart className="w-4 h-4 text-green-600" />;
+                  if (normalized.includes('óbito') || normalized.includes('obito')) return <Skull className="w-4 h-4 text-green-600" />;
+                  return <FileText className="w-4 h-4 text-green-600" />;
                 };
 
                 const renderCard = (m: { id: string; name: string; customer_type: string }) => {
@@ -318,10 +318,9 @@ export default function DocumentsListScreen({ family, documents, members = [], o
                               <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
                                 <span>Enviado</span>
                                 {recentByType.map((t, idx) => {
-                                  const icon = getIconForLabel(t.label);
-                                  const content = (
-                                    <span key={`${t.label}-${idx}`} title={t.label} aria-label={t.label}>
-                                      {icon}
+                                  const iconEl = (
+                                    <span key={`${t.label}-${idx}`} title={t.label} aria-label={t.label} className="inline-flex items-center">
+                                      {getIconForLabel(t.label)}
                                     </span>
                                   );
                                   return t.url ? (
@@ -333,9 +332,9 @@ export default function DocumentsListScreen({ family, documents, members = [], o
                                       title={`${t.label} (abrir)`}
                                       className="hover:opacity-80"
                                     >
-                                      {content}
+                                      {iconEl}
                                     </a>
-                                  ) : content;
+                                  ) : iconEl;
                                 })}
                               </div>
                             ) : (
