@@ -88,6 +88,7 @@ export interface UserStats {
   cadenceStreakHours?: number;
   pacingRatio?: number; // 0..inf
   pacingStatus?: 'ahead' | 'onTrack' | 'behind' | 'farBehind';
+  recentFamilies?: Array<{ id: string; name: string; lastAt: string | Date }>
 }
 
 export interface RankingUser {

@@ -88,8 +88,11 @@ export default function Layout({ children, title }: LayoutProps) {
 
       {user && showGreeting && (
         <div className="bg-gradient-to-r from-blue-50 to-green-50 border-b border-slate-200">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
-            <div className="text-slate-800 text-sm fade-in">{greeting}</div>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex items-center gap-3 fade-in">
+              <span className="text-rose-500">❋</span>
+              <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-800">{greeting}</h2>
+            </div>
           </div>
         </div>
       )}

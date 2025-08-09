@@ -169,7 +169,7 @@ export default function UserProfile({ user, stats }: UserProfileProps) {
           )}
 
           {/* Info Rápida */}
-          <div className="text-left flex-1">
+            <div className="text-left flex-1">
             <div className="font-semibold text-slate-900 text-base">{user.username}</div>
             <div className="text-sm text-slate-600 flex items-center space-x-3">
               <span className="flex items-center space-x-1">
@@ -232,6 +232,20 @@ export default function UserProfile({ user, stats }: UserProfileProps) {
 
         {/* Conteúdo do Painel */}
         <div className="p-6 overflow-y-auto h-full pb-20">
+          {/* Saudação grande */}
+          <div className="mb-6">
+            <div className="flex items-center gap-3 fade-in">
+              <span className="text-rose-300">❋</span>
+              <h3 className="text-2xl font-semibold tracking-tight">
+                {(() => {
+                  const h = new Date().getHours();
+                  const base = h < 12 ? 'Como vai' : h < 18 ? 'Boa tarde' : 'Boa noite';
+                  return `${base}, ${user.username}?`;
+                })()}
+              </h3>
+            </div>
+          </div>
+
           {/* Estatísticas Principais */}
           <div className="space-y-4 mb-6">
               {/* Ofensiva (cadência/hora) */}
@@ -422,6 +436,32 @@ export default function UserProfile({ user, stats }: UserProfileProps) {
               })}
             </div>
           </div>
+
+          {/* Famílias recentes do usuário */}
+          {Array.isArray((effective as any).recentFamilies) && (effective as any).recentFamilies.length > 0 && (
+            <div className="mb-5 bg-white rounded-lg p-4 shadow-sm border border-slate-200">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-2">
+                  <div className="bg-emerald-50 p-2 rounded-lg">
+                    <Users className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <span className="font-medium text-slate-900">Famílias Recentes</span>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {((effective as any).recentFamilies as Array<any>).map((f: any) => (
+                  <a
+                    key={f.id}
+                    href={`/Documentos?familia=${encodeURIComponent(f.id)}`}
+                    className="px-3 py-1.5 rounded-full text-sm font-medium border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                    title={`Abrir família ${f.name}`}
+                  >
+                    {f.name}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Gráfico da Semana */}
           <div className="mb-5 bg-white rounded-lg p-4 shadow-sm border border-slate-200">

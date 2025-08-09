@@ -690,6 +690,16 @@ export const getUserSummary = async (req: Request, res: Response) => {
           SELECT * FROM ranked ORDER BY r ASC LIMIT 50
         `;
 
+        // Últimas famílias do usuário (até 6 distintas)
+        const recentFamiliesRows: Array<{ idFamilia: string; nomeFamilia: string | null; lastAt: Date }> = await prisma.$queryRaw`
+          SELECT DISTINCT ON (LOWER("idFamilia")) "idFamilia", "nomeFamilia", MAX("createdAt") as "lastAt"
+          FROM "Submission"
+          WHERE "userId" = ${userId} AND COALESCE("idFamilia", '') <> ''
+          GROUP BY LOWER("idFamilia"), "idFamilia", "nomeFamilia"
+          ORDER BY LOWER("idFamilia"), MAX("createdAt") DESC
+          LIMIT 6
+        `;
+
         const payload = {
           totalSubmissions: Number(totalSubmissions) || 0,
           todayCount: Number(todayCount) || 0,
@@ -699,6 +709,11 @@ export const getUserSummary = async (req: Request, res: Response) => {
           weeklyData: weeklyData.map(d => ({ date: d.date, count: Number(d.count) || 0 })),
           totalUsers: Number(totalUsers) || 0,
           rank: Number(rank) || 0,
+          recentFamilies: recentFamiliesRows.map(r => ({
+            id: r.idFamilia,
+            name: r.nomeFamilia || r.idFamilia,
+            lastAt: r.lastAt,
+          })),
           // Cadência/hora
           perHourTarget: Number(perHourTarget) || 0,
           hoursElapsed: Number(hoursElapsed) || 0,
