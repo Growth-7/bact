@@ -4,7 +4,6 @@ import { useDropzone } from 'react-dropzone';
 import Layout from './Layout';
 import { DocumentSubmission, SubmissionType, LocationType, REQUERENTE_DOCUMENT_TYPES, FAMILIA_DOCUMENT_TYPES } from '../types';
 import axios from 'axios';
-import { isUUID } from 'class-validator';
 
 interface FamilyMember {
   id: string;
@@ -21,6 +20,11 @@ interface DocumentUploadScreenProps {
 }
 
 export default function DocumentUploadScreen({ location, onNext, onBack, initialData, existingDocuments = [] }: DocumentUploadScreenProps) {
+  const isValidUUID = (value: string): boolean => {
+    if (!value) return false;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(value.trim());
+  };
   const [submissionType, setSubmissionType] = useState<SubmissionType>(initialData?.submissionType || 'requerente');
   const [formData, setFormData] = useState<Omit<DocumentSubmission, 'location' | 'submissionType'>>({
     nomeRequerente: initialData?.nomeRequerente || '',
@@ -63,7 +67,7 @@ export default function DocumentUploadScreen({ location, onNext, onBack, initial
 
   useEffect(() => {
     const fetchFamilyMembers = async () => {
-      if (submissionType === 'requerente' && formData.idFamilia && isUUID(formData.idFamilia)) {
+      if (submissionType === 'requerente' && formData.idFamilia && isValidUUID(formData.idFamilia)) {
         setIsFetchingMembers(true);
         setError(null);
         try {
