@@ -88,11 +88,23 @@ function App() {
     const persistedFamilyRaw = localStorage.getItem('selectedFamily');
     const path = getPathname();
     const familiaParam = getQueryParam('familia');
+    const submissionParam = getQueryParam('submission');
+    const tipoParam = getQueryParam('tipo');
     if (storedToken) {
       handleLogin(storedToken);
       if (path.toLowerCase().startsWith('/documentos') && familiaParam) {
         // Deep link tem prioridade sobre persistência local
         fetchFamilyAndEnter(familiaParam);
+      } else if (path.toLowerCase().startsWith('/upload') && familiaParam) {
+        // Deep link para upload
+        fetchFamilyAndEnter(familiaParam).then(() => {
+          setCurrentScreen('upload');
+        });
+      } else if (path.toLowerCase().startsWith('/progresso') && submissionParam) {
+        setSubmissionId(submissionParam);
+        setCurrentScreen('progress');
+      } else if (path.toLowerCase().startsWith('/sucesso')) {
+        setCurrentScreen('success');
       } else if (persistedFamilyRaw) {
         try {
           const fam = JSON.parse(persistedFamilyRaw);
@@ -154,6 +166,7 @@ function App() {
       setToken(tkn);
       localStorage.setItem('authToken', tkn);
       setCurrentScreen('familySearch');
+      replaceUrl('/familias');
     } catch (error) {
       console.error("Failed to decode token:", error);
       handleLogout();
@@ -168,12 +181,17 @@ function App() {
   const handleFinalSubmit = (result: { submissionId: string }) => {
     setSubmissionId(result.submissionId);
     setCurrentScreen('progress');
+    pushUrl(`/progresso?submission=${encodeURIComponent(result.submissionId)}`);
   };
 
   const handleCompletion = (data: { bitrixDealId?: string; fileUrls?: string[] }) => {
     setFinalSubmissionData(data);
     // Após concluir um envio, permanece no contexto da família: mostrar success e permitir voltar para a lista
     setCurrentScreen('success');
+    if (selectedFamily) {
+      const deal = data?.bitrixDealId ? `&deal=${encodeURIComponent(String(data.bitrixDealId))}` : '';
+      pushUrl(`/sucesso?familia=${encodeURIComponent(selectedFamily.id)}${deal}`);
+    }
     if (selectedFamily) {
       const apiUrl = (import.meta as any).env?.VITE_API_URL || '';
       fetch(`${apiUrl}/api/submissions/family/${selectedFamily.id}`)
@@ -190,6 +208,11 @@ function App() {
     setSelectedLocation(null);
     setSubmissionId(null);
     setFinalSubmissionData(null);
+    if (selectedFamily) {
+      replaceUrl(`/Documentos?familia=${encodeURIComponent(selectedFamily.id)}`);
+    } else {
+      replaceUrl('/familias');
+    }
   };
 
   const handleCompleteFamily = () => {
@@ -202,6 +225,7 @@ function App() {
     setSubmissionId(null);
     setFinalSubmissionData(null);
     setCurrentScreen('familySearch');
+    replaceUrl('/familias');
   };
 
   const handleFamilySelect = async (family: { id: string; name: string; members: string[]; documentsCount: number }) => {
@@ -237,6 +261,7 @@ function App() {
     };
     setDocumentData(initial);
     setCurrentScreen('upload');
+    pushUrl(`/upload?familia=${encodeURIComponent(selectedFamily.id)}&tipo=familia`);
   };
 
   const handleAddRequesterDocument = () => {
@@ -250,6 +275,7 @@ function App() {
     };
     setDocumentData(initial);
     setCurrentScreen('upload');
+    pushUrl(`/upload?familia=${encodeURIComponent(selectedFamily.id)}&tipo=requerente`);
   };
 
   const handleAddRequesterDocumentFor = (member: { id: string; name: string }) => {
@@ -265,6 +291,7 @@ function App() {
     };
     setDocumentData(initial);
     setCurrentScreen('upload');
+    pushUrl(`/upload?familia=${encodeURIComponent(selectedFamily.id)}&tipo=requerente`);
   };
   
   const handleLogout = () => {
