@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { handleSubmission, getSubmissionStatus } from '../controllers/SubmissionController.js';
+import { handleSubmission, getSubmissionStatus, listFamilySubmissions, getUserSubmissionStats, getUserWeeklyActivity, markFamilyCompleted, getUserSummary, updateDailyGoal } from '../controllers/SubmissionController.js';
 import { FileUploadMiddleware } from '../middleware/FileUploadMiddleware.js';
 
 const submissionRoutes = Router();
@@ -10,6 +10,16 @@ submissionRoutes.post('/', upload.array('files', FileUploadMiddleware.MAX_FILES)
 
 // Rota para obter o status de uma submissão
 submissionRoutes.get('/:id/status', getSubmissionStatus);
+
+// Rota para listar submissões por família
+submissionRoutes.get('/family/:familyId', listFamilySubmissions);
+
+// Estatísticas por usuário
+submissionRoutes.get('/user/:userId/stats', getUserSubmissionStats);
+submissionRoutes.get('/user/:userId/weekly', getUserWeeklyActivity);
+submissionRoutes.post('/family/:familyId/complete', markFamilyCompleted);
+submissionRoutes.get('/user/:userId/summary', getUserSummary);
+submissionRoutes.patch('/user/:userId/daily-goal', updateDailyGoal);
 
 export default submissionRoutes;
 

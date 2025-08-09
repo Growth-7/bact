@@ -30,13 +30,19 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
         setIsSearching(false);
         return;
       }
-      const families: Family[] = (data.families || []).map((item: any) => ({
-        id: item.familiaId || item.id,
-        name: item.familiaName || 'Sem nome',
-        members: [],
-        documentsCount: 0,
-      }));
-      setSearchResults(families);
+      const familiesRaw: Family[] = (data.families || []).map((item: any) => {
+        const rawId: string = item.familiaId || item.id || '';
+        return {
+          id: rawId.toUpperCase(),
+          name: item.familiaName || 'Sem nome',
+          members: [],
+          documentsCount: 0,
+        } as Family;
+      });
+      const uniqueById = Array.from(
+        new Map<string, Family>(familiesRaw.map((f) => [f.id.toLowerCase(), f])).values()
+      );
+      setSearchResults(uniqueById);
     } catch (e) {
       setSearchResults([]);
     } finally {
@@ -67,7 +73,7 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={handleKeyPress}
                 className="w-full pl-10 pr-4 py-4 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-slate-900 placeholder-slate-400 text-lg"
-                placeholder="Digite o ID (ex: FAM001) ou nome da família"
+                placeholder="Digite o ID ou nome da família"
               />
             </div>
             <button
@@ -133,7 +139,7 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
                             </span>
                             <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">
                               {family.documentsCount} {family.documentsCount === 1 ? 'doc' : 'docs'}
-                            </span>
+                            </span> 
                           </div>
                         </div>
                       </div>

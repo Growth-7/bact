@@ -6,17 +6,21 @@ import { DocumentSubmission, Family, DOCUMENT_TYPES, FAMILY_DOCUMENT_TYPES, Docu
 interface DocumentsListScreenProps {
   family: Family;
   documents: DocumentSubmission[];
+  members?: Array<{ id: string; name: string; customer_type: string }>;
   onBack: () => void;
   onAddDocument: () => void;
+  onAddDocumentForRequester?: (member: { id: string; name: string }) => void;
   onAddFamilyDocument: () => void;
 }
 
-export default function DocumentsListScreen({ family, documents, onBack, onAddDocument, onAddFamilyDocument }: DocumentsListScreenProps) {
-  const [showDocument, setShowDocument] = useState<DocumentSubmission | null>(null);
+export default function DocumentsListScreen({ family, documents, members = [], onBack, onAddDocument, onAddDocumentForRequester, onAddFamilyDocument }: DocumentsListScreenProps) {
   const [selectedRequester, setSelectedRequester] = useState<string | null>(null);
   const [selectedFamilyDocs, setSelectedFamilyDocs] = useState<boolean>(false);
 
-  const formatDate = (date: Date) => {
+  const formatDate = (dateLike: Date | string | undefined | null) => {
+    if (!dateLike) return '-';
+    const date = dateLike instanceof Date ? dateLike : new Date(dateLike);
+    if (isNaN(date.getTime())) return '-';
     return new Intl.DateTimeFormat('pt-BR', {
       day: '2-digit',
       month: '2-digit',
@@ -30,6 +34,32 @@ export default function DocumentsListScreen({ family, documents, onBack, onAddDo
     const requesterDoc = DOCUMENT_TYPES.find((docType: DocumentTypeOption) => docType.value === type);
     const familyDoc = FAMILY_DOCUMENT_TYPES.find((docType: DocumentTypeOption) => docType.value === type);
     return requesterDoc?.label || familyDoc?.label || type;
+  };
+
+  const getCanonicalType = (code: string): 'italian' | 'req' | 'family' | 'spouse' | 'underage' | 'responsible' | 'other' => {
+    if (!code) return 'other';
+    const normalized = String(code).toLowerCase();
+    if (normalized === 'italian') return 'italian';
+    if (normalized === 'req' || normalized === 'requerente') return 'req';
+    if (normalized === 'family-member' || normalized === 'family_member' || normalized === 'familiar') return 'family';
+    if (normalized === 'spouse') return 'spouse';
+    if (normalized === 'underage') return 'underage';
+    if (normalized === 'responsible') return 'responsible';
+    return 'other';
+  };
+
+  const translateCustomerType = (code: string) => {
+    const canonical = getCanonicalType(code);
+    const map: Record<ReturnType<typeof getCanonicalType>, string> = {
+      italian: 'Italiano',
+      req: 'Requerente',
+      family: 'Familiar',
+      spouse: 'Cônjuge',
+      underage: 'Menor',
+      responsible: 'Responsável',
+      other: 'Outro',
+    };
+    return map[canonical];
   };
 
   // Separar documentos da família e dos requerentes
@@ -46,54 +76,7 @@ export default function DocumentsListScreen({ family, documents, onBack, onAddDo
     return acc;
   }, {} as Record<string, DocumentSubmission[]>);
 
-  const renderDocumentPreview = () => {
-    if (!showDocument) return null;
-
-    const fileObj = showDocument.file || showDocument.files?.[0];
-    if (!fileObj) return null;
-    const fileUrl = URL.createObjectURL(fileObj);
-    const isImage = fileObj.type.startsWith('image/');
-    const isPdf = fileObj.type === 'application/pdf';
-
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 animate-fadeIn">
-        <div className="bg-white rounded-xl max-w-5xl max-h-[90vh] overflow-auto shadow-2xl transform animate-slideUp">
-          <div className="p-6 border-b border-slate-200 flex items-center justify-between bg-slate-50 rounded-t-xl">
-            <div>
-              <h3 className="text-xl font-semibold text-slate-900">{showDocument.fileName || fileObj.name}</h3>
-              <p className="text-sm text-slate-600 mt-1">{getDocumentTypeLabel(showDocument.documentType || '')}</p>
-            </div>
-            <button
-              onClick={() => setShowDocument(null)}
-              className="text-slate-500 hover:text-slate-700 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 transition-all duration-200"
-            >
-              ×
-            </button>
-          </div>
-          <div className="p-6">
-            {isImage ? (
-              <img
-                src={fileUrl}
-                alt="Documento"
-                className="max-w-full h-auto rounded-lg shadow-lg"
-              />
-            ) : isPdf ? (
-              <iframe
-                src={fileUrl}
-                className="w-full h-[600px] rounded-lg shadow-lg"
-                title="Documento PDF"
-              />
-            ) : (
-              <div className="text-center py-12">
-                <FileText className="w-20 h-20 text-slate-400 mx-auto mb-4" />
-                <p className="text-slate-600 text-lg">Visualização não disponível para este tipo de arquivo</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
+  // Preview e download desabilitados nesta versão
 
   return (
     <Layout title={`Documentos - Família ${family.name}`}>
@@ -113,7 +96,14 @@ export default function DocumentsListScreen({ family, documents, onBack, onAddDo
                   ID: {family.id}
                 </p>
                 <p className="text-blue-100">
-                  <strong>Membros:</strong> {family.members.join(', ')}
+                  <strong>Membros:</strong>{' '}
+                  {(() => {
+                    const maxDisplay = 10;
+                    const names = family.members || [];
+                    const visible = names.slice(0, maxDisplay);
+                    const extra = Math.max(0, names.length - maxDisplay);
+                    return `${visible.join(', ')}${extra > 0 ? ` e +${extra}` : ''}`;
+                  })()}
                 </p>
               </div>
             </div>
@@ -129,7 +119,7 @@ export default function DocumentsListScreen({ family, documents, onBack, onAddDo
         </div>
 
         {/* Botão Adicionar Documento - Mais destacado */}
-        <div className="mb-8">
+        <div className="mb-12">
           <div className="flex flex-col sm:flex-row gap-4">
             <button
               onClick={onAddFamilyDocument}
@@ -222,47 +212,27 @@ export default function DocumentsListScreen({ family, documents, onBack, onAddDo
                               </span>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-600">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-600">
                               <div className="flex items-center space-x-2">
                                 <Calendar className="w-4 h-4" />
                                 <span>{docItem.uploadDate ? formatDate(docItem.uploadDate) : '-'}</span>
                               </div>
-                              <div>
-                                <span className="font-medium">{docItem.fileSize ? (docItem.fileSize / 1024 / 1024).toFixed(2) : '-' } MB</span>
-                              </div>
+                            {/* Link removido aqui; o atalho de visualização fica no canto direito com ícone */}
                             </div>
                           </div>
                           
                           <div className="flex items-center space-x-3 ml-6">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowDocument(docItem);
-                              }}
-                              title="Visualizar documento"
-                              className="bg-blue-100 hover:bg-blue-200 text-blue-800 px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition-all duration-200 transform hover:scale-105"
-                            >
-                              <Eye className="w-4 h-4" />
-                              <span>Visualizar</span>
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const toDownload = docItem.file || docItem.files?.[0];
-                                if (!toDownload) return;
-                                const url = URL.createObjectURL(toDownload);
-                                const a = window.document.createElement('a');
-                                a.href = url;
-                                a.download = docItem.fileName || toDownload.name;
-                                a.click();
-                                URL.revokeObjectURL(url);
-                              }}
-                              title="Fazer download do documento"
-                              className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition-all duration-200 transform hover:scale-105"
-                            >
-                              <Download className="w-4 h-4" />
-                              <span>Download</span>
-                            </button>
+                            {Array.isArray((docItem as any).fileUrls) && (docItem as any).fileUrls.length > 0 && (
+                              <a
+                                href={(docItem as any).fileUrls[0]}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Visualizar no Drive"
+                                className="p-2 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 transition-colors"
+                              >
+                                <Eye className="w-5 h-5" />
+                              </a>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -274,13 +244,96 @@ export default function DocumentsListScreen({ family, documents, onBack, onAddDo
           )}
         </div>
 
-        {/* Seção de Documentos dos Requerentes */}
+        {/* Seção de “pastas” de requerentes */}
         <div className="mb-8">
           <div className="flex items-center my-8">
             <div className="flex-1 h-px bg-slate-300"></div>
-            <div className="px-4 text-slate-500 font-medium text-sm">DOCUMENTOS DOS REQUERENTES</div>
+            <div className="px-4 text-slate-500 font-medium text-sm">DOCUMENTOS DOS REQUERENTES ({members.length})</div>
             <div className="flex-1 h-px bg-slate-300"></div>
           </div>
+
+          {members.length === 0 ? (
+            <div className="text-center py-12 bg-slate-50 rounded-2xl animate-fadeIn">
+              <Users className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+              <p className="text-slate-600">Nenhum requerente encontrado para esta família.</p>
+            </div>
+          ) : (
+            <div className="max-h-[480px] overflow-y-auto pr-2 space-y-10">
+              {(() => {
+                const groupsOrder: Array<ReturnType<typeof getCanonicalType>> = ['italian','req','spouse','underage','responsible','family','other'];
+                const grouped = new Map<ReturnType<typeof getCanonicalType>, typeof members>();
+                for (const m of members) {
+                  const key = getCanonicalType(m.customer_type);
+                  const list = grouped.get(key) || [];
+                  list.push(m);
+                  grouped.set(key, list);
+                }
+
+                const renderCard = (m: { id: string; name: string; customer_type: string }) => {
+                  const mid = (m.id || '').toLowerCase();
+                  const mname = (m.name || '').toLowerCase().trim();
+                  const sourceDocs = requesterDocuments;
+                  const matcher = (d: DocumentSubmission) => {
+                    const did = (d.idRequerente || '').toLowerCase();
+                    return Boolean(did) && Boolean(mid) && did === mid;
+                  };
+                  const lastDoc = sourceDocs.find(matcher);
+                  const docsForMember = sourceDocs.filter(matcher);
+                  const status = docsForMember.length > 0 && lastDoc?.documentType
+                    ? `Enviado: ${getDocumentTypeLabel(lastDoc.documentType)}`
+                    : 'Nenhum documento';
+                  return (
+                    <div key={m.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-200 min-h-[11rem] flex flex-col overflow-hidden">
+                      <div className="flex items-center space-x-4 mb-3">
+                        <div className="bg-green-100 p-3 rounded-xl">
+                          <User className="w-6 h-6 text-green-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-lg font-semibold text-slate-900 truncate" title={m.name}>{m.name}</h4>
+                          <p className="text-slate-500 text-sm">{translateCustomerType(m.customer_type)}</p>
+                          <div className="mt-1 text-xs">
+                            {docsForMember.length > 0 ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+                                {status}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">{status}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-auto space-y-2">
+                        <button
+                          onClick={() => onAddDocumentForRequester?.({ id: m.id, name: m.name })}
+                          className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2"
+                        >
+                          <UserCheck className="w-4 h-4" />
+                          <span>Adicionar Documento</span>
+                        </button>
+                        <div className="text-[11px] text-slate-400 truncate pb-1" title={m.id}>ID: {m.id}</div>
+                      </div>
+                    </div>
+                  );
+                };
+
+                return groupsOrder.map((key) => {
+                  const list = grouped.get(key) || [];
+                  if (list.length === 0) return null;
+                  return (
+                    <section key={key} className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-slate-700 font-medium">{translateCustomerType(key)}</h4>
+                        <span className="text-slate-400 text-sm">{list.length}</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-6">
+                        {list.map(renderCard)}
+                      </div>
+                    </section>
+                  );
+                });
+              })()}
+            </div>
+          )}
         </div>
 
         {requesterDocuments.length === 0 ? (
@@ -296,7 +349,7 @@ export default function DocumentsListScreen({ family, documents, onBack, onAddDo
             </button>
           </div>
         ) : (
-          <div className="bg-slate-50 rounded-2xl p-6">
+            <div className="bg-slate-50 rounded-2xl p-6">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-3">
                 <div className="bg-blue-100 p-2 rounded-lg">
@@ -304,13 +357,22 @@ export default function DocumentsListScreen({ family, documents, onBack, onAddDo
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">Requerentes</h3>
-                  <p className="text-sm text-slate-600">
+                  <p className="text-sm text-slate-600 flex items-center gap-2">
+                    <a
+                      href="#"
+                      onClick={(e) => e.preventDefault()}
+                      className="p-1 rounded-lg text-blue-600"
+                      aria-hidden
+                    >
+                      <Eye className="w-4 h-4" />
+                    </a>
                     {Object.keys(documentsByRequester).length} {Object.keys(documentsByRequester).length === 1 ? 'requerente' : 'requerentes'} com documentos
                   </p>
                 </div>
               </div>
               <div className="bg-white px-3 py-1 rounded-full border border-slate-200">
-                <span className="text-sm font-medium text-slate-700">
+                <span className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                  <Eye className="w-4 h-4 text-blue-600" />
                   {requesterDocuments.length} {requesterDocuments.length === 1 ? 'documento' : 'documentos'} total
                 </span>
               </div>
@@ -373,44 +435,28 @@ export default function DocumentsListScreen({ family, documents, onBack, onAddDo
                               </span>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-600">
-                              <div className="flex items-center space-x-2">
-                                <Calendar className="w-4 h-4" />
-                                <span>{docItem.uploadDate ? formatDate(docItem.uploadDate) : '-'}</span>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-600">
+                                <div className="flex items-center space-x-2">
+                                  <Calendar className="w-4 h-4" />
+                                  <span>{docItem.uploadDate ? formatDate(docItem.uploadDate) : '-'}</span>
+                                </div>
+                                {Array.isArray((docItem as any).fileUrls) && (docItem as any).fileUrls.length > 0 && (
+                                  <div className="flex items-center justify-end">
+                                    <a
+                                      href={(docItem as any).fileUrls[0]}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title="Visualizar no Drive"
+                                      className="p-2 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 transition-colors"
+                                    >
+                                      <Eye className="w-5 h-5" />
+                                    </a>
+                                  </div>
+                                )}
                               </div>
-                              <div>
-                                <span className="font-medium">{docItem.fileSize ? (docItem.fileSize / 1024 / 1024).toFixed(2) : '-' } MB</span>
-                              </div>
-                            </div>
                           </div>
                           
-                          <div className="flex items-center space-x-3 ml-6">
-                            <button
-                              onClick={() => setShowDocument(docItem)}
-                              title="Visualizar documento"
-                              className="bg-blue-100 hover:bg-blue-200 text-blue-800 px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition-all duration-200 transform hover:scale-105"
-                            >
-                              <Eye className="w-4 h-4" />
-                              <span>Visualizar</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                const toDownload = docItem.file || docItem.files?.[0];
-                                if (!toDownload) return;
-                                const url = URL.createObjectURL(toDownload);
-                                const a = window.document.createElement('a');
-                                a.href = url;
-                                a.download = docItem.fileName || toDownload.name;
-                                a.click();
-                                URL.revokeObjectURL(url);
-                              }}
-                              title="Fazer download do documento"
-                              className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition-all duration-200 transform hover:scale-105"
-                            >
-                              <Download className="w-4 h-4" />
-                              <span>Download</span>
-                            </button>
-                          </div>
+                        <div className="flex items-center space-x-3 ml-6" />
                         </div>
                       </div>
                     ))}
@@ -432,10 +478,32 @@ export default function DocumentsListScreen({ family, documents, onBack, onAddDo
             <ArrowLeft className="w-4 h-4" />
             <span>Voltar</span>
           </button>
+          <button
+            type="button"
+            title="Marcar família como concluída"
+            onClick={async () => {
+              try {
+                const apiUrl = (import.meta as any).env?.VITE_API_URL || '';
+                const token = localStorage.getItem('authToken') || '';
+                const payload = JSON.parse(atob(token.split('.')[1] || 'null') || 'null');
+                const userId = payload?.id;
+                if (!userId) return;
+                await fetch(`${apiUrl}/api/submissions/family/${family.id}/complete`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userId, familyName: family.name })
+                });
+                // Opcional: feedback visual
+                alert('Família marcada como concluída!');
+              } catch {}
+            }}
+            className="px-6 py-3 rounded-lg bg-green-600 text-white hover:bg-green-700"
+          >
+            Concluir Família
+          </button>
         </div>
       </div>
 
-      {showDocument && renderDocumentPreview()}
     </Layout>
   );
 }

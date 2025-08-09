@@ -49,5 +49,5 @@ COPY --from=builder /app/prisma ./prisma
 # Expõe a porta
 EXPOSE 3333
 
-# Comando para iniciar a aplicação com a flag OpenSSL
-CMD ["node", "--openssl-legacy-provider", "dist/server.js"]
+# Comando para iniciar a aplicação
+CMD ["node", "dist/src/server.js"]

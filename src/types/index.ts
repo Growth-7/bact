@@ -68,4 +68,27 @@ export interface DocumentSubmission {
   fileName?: string;
   uploadDate?: Date;
   fileSize?: number;
+  fileUrls?: string[];
+}
+
+// User/Profile stats
+export interface UserStats {
+  totalSubmissions: number;
+  todayCount: number;
+  currentStreak: number;
+  longestStreak: number;
+  dailyGoal: number;
+  weeklyData: Array<{ date: string; count: number }>;
+  totalUsers: number;
+  rank: number;
+}
+
+export interface RankingUser {
+  id?: string;
+  username: string;
+  totalSubmissions: number;
+  currentStreak: number;
+  todayCount: number;
+  isCurrentUser?: boolean;
+  rank?: number;
 }

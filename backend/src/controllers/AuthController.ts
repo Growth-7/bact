@@ -20,6 +20,19 @@ const getValidationApiHeaders = () => {
   };
 };
 
+const getFamilyCacheApiHeaders = () => {
+  const API_KEY = process.env.FAMILY_CACHE_SUPABASE_ANON_KEY;
+  const SERVICE_KEY = process.env.FAMILY_CACHE_SUPABASE_SERVICE_ROLE_KEY;
+  if (!API_KEY || !SERVICE_KEY) {
+    throw new Error('A configuração da API do family_cache está incompleta no servidor.');
+  }
+  return {
+    'apikey': API_KEY,
+    'Authorization': `Bearer ${SERVICE_KEY}`,
+    'Content-Type': 'application/json',
+  };
+};
+
 export class AuthController {
   async register(req: Request, res: Response): Promise<Response | void> {
     const { username, password, user_id_bitrix24, birth_date } = req.body;
@@ -110,9 +123,10 @@ export class AuthController {
     }
     try {
       const headers = getValidationApiHeaders();
-      const API_URL = process.env.VALIDATION_SUPABASE_URL;
+      const API_URL = (process.env.VALIDATION_SUPABASE_URL || '').replace(/\/+$/, '');
+      const REST_URL = API_URL.endsWith('/rest/v1') ? API_URL : `${API_URL}/rest/v1`;
       const { data } = await axios.get(
-        `${API_URL}/rest/v1/customer_full_info?select=*&familia_id=eq.${familyId}`,
+        `${REST_URL}/customer_full_info?select=*&familia_id=eq.${familyId}`,
         { headers }
       );
 
@@ -141,18 +155,49 @@ export class AuthController {
       return res.status(400).json({ success: false, message: 'Parâmetro de busca (q) é obrigatório.' });
     }
     try {
-      const headers = getValidationApiHeaders();
-      const API_URL = process.env.VALIDATION_SUPABASE_URL;
-      const encodedQ = encodeURIComponent(`familiaName.ilike.%${q}%`,);
-      const orFilter = encodeURIComponent(
-        `familiaName.ilike.%${q}%,familiaId.ilike.%${q}%,bitrixId.ilike.%${q}%,requerenteId.ilike.%${q}%`
-      );
-      const url = `${API_URL}/rest/v1/family_cache?select=*&or=(${orFilter})&limit=50`;
-      const { data } = await axios.get(url, { headers });
-      return res.status(200).json({ success: true, families: data });
-    } catch (error) {
-      console.error('Erro ao buscar famílias:', error);
-      return res.status(500).json({ success: false, message: 'Erro ao buscar famílias.' });
+      const like = `%${q}%`;
+      // 1) Tenta camelCase com identificadores entre aspas (base atual)
+      try {
+        const rows = await prisma.$queryRaw<any[]>`
+          SELECT id, "bitrixId", "requerenteId", "familiaId", "familiaName"
+          FROM "family_cache"
+          WHERE "familiaName" ILIKE ${like}
+             OR "familiaId" ILIKE ${like}
+             OR "bitrixId" ILIKE ${like}
+             OR "requerenteId" ILIKE ${like}
+          LIMIT 50
+        `;
+        const families = rows.map((r) => ({
+          id: r.id,
+          bitrixId: r.bitrixId ?? null,
+          requerenteId: r.requerenteId ?? null,
+          familiaId: r.familiaId ?? null,
+          familiaName: r.familiaName ?? null,
+        }));
+        return res.status(200).json({ success: true, families });
+      } catch (camelErr) {
+        // 2) Fallback: snake_case (ambientes que usem underscores)
+        const rows = await prisma.$queryRaw<any[]>`
+          SELECT id, bitrix_id, requerente_id, familia_id, familia_name
+          FROM "family_cache"
+          WHERE familia_name ILIKE ${like}
+             OR familia_id ILIKE ${like}
+             OR bitrix_id ILIKE ${like}
+             OR requerente_id ILIKE ${like}
+          LIMIT 50
+        `;
+        const families = rows.map((r) => ({
+          id: r.id,
+          bitrixId: r.bitrix_id ?? null,
+          requerenteId: r.requerente_id ?? null,
+          familiaId: r.familia_id ?? null,
+          familiaName: r.familia_name ?? null,
+        }));
+        return res.status(200).json({ success: true, families });
+      }
+    } catch (error: any) {
+      console.error('Erro ao buscar famílias (DATABASE_URL):', error);
+      return res.status(500).json({ success: false, message: 'Erro ao buscar famílias no banco.' });
     }
   }
 

@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { FileText } from 'lucide-react';
+import UserProfile from './UserProfile';
+import { getUserSummary } from '../services/user';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -7,6 +9,22 @@ interface LayoutProps {
 }
 
 export default function Layout({ children, title }: LayoutProps) {
+  const [summary, setSummary] = useState<any | null>(null);
+  const [user, setUser] = useState<{ id: string; username: string } | null>(null);
+  useEffect(() => {
+    // tentar extrair userId do token localStorage, se existir
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+      const payload = JSON.parse(atob(token.split('.')[1] || ''));
+      const userId = payload?.id;
+      const username = payload?.username || payload?.sub || 'Usuário';
+      if (userId) {
+        setUser({ id: userId, username });
+        getUserSummary(userId).then((s) => s && setSummary(s)).catch(() => {});
+      }
+    } catch {}
+  }, []);
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b border-slate-200 shadow-sm">
@@ -21,11 +39,28 @@ export default function Layout({ children, title }: LayoutProps) {
                 <p className="text-xs text-slate-500">Base de Arquivos para Certidões e Tradução</p>
               </div>
             </div>
+            {user && (
+              <UserProfile
+                user={user}
+                stats={
+                  summary || {
+                    totalSubmissions: 0,
+                    todayCount: 0,
+                    currentStreak: 0,
+                    longestStreak: 0,
+                    dailyGoal: 336,
+                    weeklyData: [],
+                    totalUsers: 0,
+                    rank: 0,
+                  }
+                }
+              />
+            )}
           </div>
         </div>
       </header>
       
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-[70%] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {title && (
           <div className="mb-8">
             <h2 className="text-2xl font-light text-slate-900">{title}</h2>

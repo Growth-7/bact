@@ -369,3 +369,314 @@ export const getSubmissionStatus = async (req: Request, res: Response) => {
         res.status(500).json({ success: false, message: 'Erro ao consultar o status da submissão.' });
     }
 };
+
+export const listFamilySubmissions = async (req: Request, res: Response) => {
+    const { familyId } = req.params;
+    try {
+        // Tenta consulta case-insensitive via Prisma
+        try {
+            const submissions = await prisma.submission.findMany({
+                where: {
+                    status: 'COMPLETED',
+                    idFamilia: { equals: familyId, mode: 'insensitive' as any },
+                },
+                orderBy: { createdAt: 'desc' },
+                select: {
+                    id: true,
+                    location: true,
+                    submissionType: true,
+                    documentType: true,
+                    nomeFamilia: true,
+                    idFamilia: true,
+                    nomeRequerente: true,
+                    idRequerente: true,
+                    fileUrls: true,
+                    createdAt: true,
+                },
+            });
+
+            const mapped = submissions.map((s) => ({
+                id: s.id,
+                location: s.location as any,
+                submissionType: s.submissionType as any,
+                documentType: s.documentType,
+                nomeFamilia: s.nomeFamilia || undefined,
+                idFamilia: s.idFamilia || undefined,
+                nomeRequerente: s.nomeRequerente || undefined,
+                idRequerente: s.idRequerente || undefined,
+                files: [],
+                fileUrls: s.fileUrls,
+                uploadDate: s.createdAt,
+                category: s.submissionType === 'familia' ? 'family' : 'requester',
+            }));
+
+            return res.status(200).json({ success: true, data: mapped });
+        } catch (e) {
+            // Fallback: consulta RAW com LOWER/ILIKE
+            const rows: any[] = await prisma.$queryRaw`
+              SELECT "id", "location", "submissionType", "documentType", "nomeFamilia", "idFamilia", "nomeRequerente", "idRequerente", "fileUrls", "createdAt"
+              FROM "Submission"
+              WHERE LOWER("idFamilia") = LOWER(${familyId}) AND "status" = 'COMPLETED'
+              ORDER BY "createdAt" DESC
+            `;
+            const mapped = rows.map((s: any) => ({
+                id: s.id,
+                location: s.location as any,
+                submissionType: s.submissionType as any,
+                documentType: s.documentType,
+                nomeFamilia: s.nomeFamilia || undefined,
+                idFamilia: s.idFamilia || undefined,
+                nomeRequerente: s.nomeRequerente || undefined,
+                idRequerente: s.idRequerente || undefined,
+                files: [],
+                fileUrls: s.fileUrls,
+                uploadDate: s.createdAt,
+                category: s.submissionType === 'familia' ? 'family' : 'requester',
+            }));
+            return res.status(200).json({ success: true, data: mapped });
+        }
+    } catch (error) {
+        console.error('Erro ao listar submissões da família:', error);
+        return res.status(500).json({ success: false, message: 'Erro ao listar submissões.' });
+    }
+};
+
+export const getUserSubmissionStats = async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    if (!userId) {
+        return res.status(400).json({ success: false, message: 'Parâmetro userId é obrigatório.' });
+    }
+    try {
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
+        const end = new Date();
+        end.setHours(23, 59, 59, 999);
+
+        const [total, today] = await Promise.all([
+            prisma.submission.count({ where: { userId } }),
+            prisma.submission.count({ where: { userId, createdAt: { gte: start, lte: end } } })
+        ]);
+
+        return res.status(200).json({ success: true, total, today });
+    } catch (error) {
+        console.error('Erro ao buscar estatísticas de envios do usuário:', error);
+        return res.status(500).json({ success: false, message: 'Erro ao buscar estatísticas.' });
+    }
+};
+
+export const getUserWeeklyActivity = async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    if (!userId) {
+        return res.status(400).json({ success: false, message: 'Parâmetro userId é obrigatório.' });
+    }
+    try {
+        // Últimos 7 dias incluindo hoje
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+        sevenDaysAgo.setHours(0, 0, 0, 0);
+
+        const rows: Array<{ day: Date; count: number }> = await prisma.$queryRaw`
+          SELECT date_trunc('day', "createdAt") AS day, COUNT(*)::int AS count
+          FROM "Submission"
+          WHERE "userId" = ${userId} AND "createdAt" >= ${sevenDaysAgo}
+          GROUP BY day
+          ORDER BY day ASC
+        `;
+
+        // Normalizar para 7 pontos
+        const map = new Map<string, number>();
+        rows.forEach(r => map.set(new Date(r.day).toISOString().slice(0,10), r.count));
+        const result: Array<{ day: string; count: number }> = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(sevenDaysAgo);
+            d.setDate(sevenDaysAgo.getDate() + i);
+            const key = d.toISOString().slice(0,10);
+            result.push({ day: key, count: map.get(key) || 0 });
+        }
+        return res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        console.error('Erro ao buscar atividade semanal:', error);
+        return res.status(500).json({ success: false, message: 'Erro ao buscar atividade semanal.' });
+    }
+};
+
+export const markFamilyCompleted = async (req: Request, res: Response) => {
+    const { familyId } = req.params;
+    const { userId, familyName } = req.body as { userId?: string; familyName?: string };
+    if (!familyId || !userId) {
+        return res.status(400).json({ success: false, message: 'familyId e userId são obrigatórios.' });
+    }
+    try {
+        const submission = await prisma.submission.create({
+            data: {
+                userId,
+                location: 'alphaville',
+                submissionType: 'familia',
+                documentType: 'FAMILY_COMPLETED',
+                nomeFamilia: familyName || '',
+                idFamilia: familyId,
+                nomeRequerente: null as any,
+                idRequerente: null as any,
+                fileUrls: [],
+                status: 'COMPLETED',
+                statusDetails: 'Família concluída manualmente.',
+            },
+        });
+        return res.status(201).json({ success: true, id: submission.id });
+    } catch (error) {
+        console.error('Erro ao marcar família como concluída:', error);
+        return res.status(500).json({ success: false, message: 'Erro ao marcar família como concluída.' });
+    }
+};
+
+export const getUserSummary = async (req: Request, res: Response) => {
+    const { userId } = req.params;
+    if (!userId) return res.status(400).json({ success: false, message: 'userId é obrigatório.' });
+    try {
+        const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+        const todayEnd = new Date(); todayEnd.setHours(23,59,59,999);
+
+        const [totalSubmissions, todayCount] = await Promise.all([
+            prisma.submission.count({ where: { userId } }),
+            prisma.submission.count({ where: { userId, createdAt: { gte: todayStart, lte: todayEnd } } })
+        ]);
+
+        // Últimos 60 dias de atividade por dia
+        const sixtyDaysAgo = new Date();
+        sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 59);
+        sixtyDaysAgo.setHours(0,0,0,0);
+        const dailyRows: Array<{ day: Date; count: number }> = await prisma.$queryRaw`
+          SELECT date_trunc('day', "createdAt") AS day, COUNT(*)::int AS count
+          FROM "Submission"
+          WHERE "userId" = ${userId} AND "createdAt" >= ${sixtyDaysAgo}
+          GROUP BY day
+          ORDER BY day ASC
+        `;
+        const dayMap = new Map<string, number>();
+        dailyRows.forEach(r => dayMap.set(new Date(r.day).toISOString().slice(0,10), r.count));
+        const todayKey = new Date().toISOString().slice(0,10);
+        // weeklyData (últimos 7 dias)
+        const weeklyData: Array<{ date: string; count: number }> = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(); d.setDate(d.getDate()-i); d.setHours(0,0,0,0);
+            const k = d.toISOString().slice(0,10);
+            weeklyData.push({ date: k, count: dayMap.get(k) || 0 });
+        }
+        // streaks
+        let currentStreak = 0; let longestStreak = 0; let temp = 0;
+        for (let i = 59; i >= 0; i--) {
+            const d = new Date(); d.setDate(d.getDate()-i); d.setHours(0,0,0,0);
+            const k = d.toISOString().slice(0,10);
+            const c = dayMap.get(k) || 0;
+            if (c > 0) { temp += 1; longestStreak = Math.max(longestStreak, temp); }
+            else { temp = 0; }
+            if (k === todayKey) currentStreak = temp;
+        }
+
+        // Ranking com janela e posição exata + vizinhança
+        const [{ count: totalUsers }]: Array<{ count: number }> = await prisma.$queryRaw`
+          SELECT COUNT(*)::int AS count FROM (
+            SELECT "userId" FROM "Submission" GROUP BY "userId"
+          ) t
+        `;
+        const neighbors: Array<{ id: string; username: string; total: number; r: number }> = await prisma.$queryRaw`
+          WITH agg AS (
+            SELECT u."id", u."username", COUNT(s.*)::int AS total
+            FROM "Submission" s JOIN "User" u ON u."id" = s."userId"
+            GROUP BY u."id", u."username"
+          ), ranked AS (
+            SELECT id, username, total, (RANK() OVER (ORDER BY total DESC))::int AS r FROM agg
+          ), me AS (
+            SELECT r AS my_rank FROM ranked WHERE id = ${userId}
+          )
+          SELECT ranked.* FROM ranked, me WHERE ranked.r BETWEEN me.my_rank - 2 AND me.my_rank + 2 ORDER BY ranked.r ASC
+        `;
+        const my = neighbors.find(n => n.id === userId);
+        const rank = my ? my.r : 1;
+        const aroundRank = neighbors.map(n => ({
+          id: n.id,
+          username: n.username,
+          totalSubmissions: n.total,
+          rank: n.r,
+          todayCount: 0,
+          currentStreak: 0,
+        }));
+
+        // Top 3 geral
+        const topRows: Array<{ id: string; username: string; total: number }> = await prisma.$queryRaw`
+          WITH agg AS (
+            SELECT u."id", u."username", COUNT(s.*)::int AS total
+            FROM "Submission" s JOIN "User" u ON u."id" = s."userId"
+            GROUP BY u."id", u."username"
+          )
+          SELECT * FROM agg ORDER BY total DESC LIMIT 3
+        `;
+        const topRank = topRows.map((r, idx) => ({
+          id: r.id,
+          username: r.username,
+          totalSubmissions: r.total,
+          rank: idx + 1,
+          todayCount: 0,
+          currentStreak: 0,
+        }));
+
+        // Daily goal fixo conforme solicitação
+        const dailyGoal = 336;
+
+        // Leaderboard (top N)
+        const leaderboardRows: Array<{ id: string; username: string; total: number; r: number }> = await prisma.$queryRaw`
+          WITH agg AS (
+            SELECT u."id", u."username", COUNT(s.*)::int AS total
+            FROM "Submission" s JOIN "User" u ON u."id" = s."userId"
+            GROUP BY u."id", u."username"
+          ), ranked AS (
+            SELECT id, username, total, (RANK() OVER (ORDER BY total DESC))::int AS r FROM agg
+          )
+          SELECT * FROM ranked ORDER BY r ASC LIMIT 50
+        `;
+
+        const payload = {
+          totalSubmissions: Number(totalSubmissions) || 0,
+          todayCount: Number(todayCount) || 0,
+          currentStreak: Number(currentStreak) || 0,
+          longestStreak: Number(longestStreak) || 0,
+          dailyGoal: Number(dailyGoal) || 0,
+          weeklyData: weeklyData.map(d => ({ date: d.date, count: Number(d.count) || 0 })),
+          totalUsers: Number(totalUsers) || 0,
+          rank: Number(rank) || 0,
+          aroundRank: aroundRank.map(r => ({
+            id: r.id,
+            username: r.username,
+            totalSubmissions: Number((r as any).totalSubmissions ?? 0),
+            rank: Number((r as any).rank ?? 0),
+            todayCount: Number((r as any).todayCount ?? 0),
+            currentStreak: Number((r as any).currentStreak ?? 0),
+          })),
+          topRank: topRank.map(r => ({
+            id: r.id,
+            username: r.username,
+            totalSubmissions: Number(r.totalSubmissions || 0),
+            rank: Number(r.rank || 0),
+            todayCount: 0,
+            currentStreak: 0,
+          })),
+          leaderboard: leaderboardRows.map(r => ({
+            id: r.id,
+            username: r.username,
+            totalSubmissions: Number(r.total || 0),
+            rank: Number(r.r || 0),
+            todayCount: 0,
+            currentStreak: 0,
+          })),
+        };
+        return res.status(200).json({ success: true, data: payload });
+    } catch (error) {
+        console.error('Erro no summary do usuário:', error);
+        return res.status(500).json({ success: false, message: 'Erro ao montar resumo.' });
+    }
+};
+
+export const updateDailyGoal = async (req: Request, res: Response) => {
+    // Meta fixa de 336/dia, não altera em produção
+    return res.status(200).json({ success: true });
+};

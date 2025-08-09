@@ -59,6 +59,13 @@ function App() {
   const handleCompletion = (data: { bitrixDealId?: string; fileUrls?: string[] }) => {
     setFinalSubmissionData(data);
     setCurrentScreen('success');
+    if (selectedFamily) {
+      const apiUrl = (import.meta as any).env?.VITE_API_URL || '';
+      fetch(`${apiUrl}/api/submissions/family/${selectedFamily.id}`)
+        .then(r => r.json())
+        .then(d => setFamilyDocuments(d.success ? d.data : []))
+        .catch(() => {});
+    }
   };
 
   const handleReset = () => {
@@ -72,6 +79,7 @@ function App() {
   // Fluxo de documentos por família
   const [selectedFamily, setSelectedFamily] = useState<{ id: string; name: string; members: string[]; documentsCount: number } | null>(null);
   const [familyDocuments, setFamilyDocuments] = useState<DocumentSubmission[]>([]);
+  const [familyMembers, setFamilyMembers] = useState<Array<{ id: string; name: string; customer_type: string }>>([]);
 
   const handleFamilySelect = async (family: { id: string; name: string; members: string[]; documentsCount: number }) => {
     setSelectedFamily({ ...family, members: family.members || [] });
@@ -80,9 +88,14 @@ function App() {
       const response = await fetch(`${apiUrl}/api/auth/family-members/${family.id}`);
       const data = await response.json();
       if (response.ok && data.success) {
-        const members: string[] = (data.members || []).map((m: any) => m.name).filter(Boolean);
-        setSelectedFamily(prev => prev ? { ...prev, name: data.familyName || prev.name, members } : prev);
+        const membersDetailed = (data.members || []).map((m: any) => ({ id: m.id, name: m.name, customer_type: m.customer_type }));
+        const memberNames: string[] = membersDetailed.map((m: any) => m.name).filter(Boolean);
+        setFamilyMembers(membersDetailed);
+        setSelectedFamily(prev => prev ? { ...prev, name: data.familyName || prev.name, members: memberNames } : prev);
       }
+      const docsRes = await fetch(`${apiUrl}/api/submissions/family/${family.id}`);
+      const docsData = await docsRes.json();
+      setFamilyDocuments(docsRes.ok && docsData.success ? (docsData.data || []) : []);
     } catch (_) {
       // silencioso
     }
@@ -109,6 +122,21 @@ function App() {
       submissionType: 'requerente',
       nomeFamilia: selectedFamily.name,
       idFamilia: selectedFamily.id,
+      files: [],
+    };
+    setDocumentData(initial);
+    setCurrentScreen('upload');
+  };
+
+  const handleAddRequesterDocumentFor = (member: { id: string; name: string }) => {
+    if (!selectedFamily) return;
+    const initial: DocumentSubmission = {
+      location: 'alphaville',
+      submissionType: 'requerente',
+      nomeFamilia: selectedFamily.name,
+      idFamilia: selectedFamily.id,
+      idRequerente: member.id,
+      nomeRequerente: member.name,
       files: [],
     };
     setDocumentData(initial);
@@ -167,6 +195,8 @@ function App() {
             onBack={() => setCurrentScreen('familySearch')}
             onAddDocument={handleAddRequesterDocument}
             onAddFamilyDocument={handleAddFamilyDocument}
+            members={familyMembers}
+            onAddDocumentForRequester={handleAddRequesterDocumentFor}
           />
         );
       }
@@ -180,6 +210,7 @@ function App() {
           onNext={handleDocumentSubmit}
           onBack={() => setCurrentScreen(selectedFamily ? 'documentsList' : 'location')}
           initialData={documentData}
+          existingDocuments={familyDocuments}
         />
       );
     case 'review':
