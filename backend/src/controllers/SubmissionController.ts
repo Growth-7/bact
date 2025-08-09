@@ -592,7 +592,9 @@ export const getUserSummary = async (req: Request, res: Response) => {
           SELECT ranked.* FROM ranked, me WHERE ranked.r BETWEEN me.my_rank - 2 AND me.my_rank + 2 ORDER BY ranked.r ASC
         `;
         const my = neighbors.find(n => n.id === userId);
-        const rank = my ? my.r : 1;
+        // Se o usuário não tiver submissões ainda, não aparece no ranking.
+        // Nesse caso, definimos rank = 0 para indicar "sem posição".
+        const rank = my ? my.r : 0;
         const aroundRank = neighbors.map(n => ({
           id: n.id,
           username: n.username,
