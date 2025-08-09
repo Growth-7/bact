@@ -31,17 +31,73 @@ function App() {
   const [familyDocuments, setFamilyDocuments] = useState<DocumentSubmission[]>([]);
   const [familyMembers, setFamilyMembers] = useState<Array<{ id: string; name: string; customer_type: string }>>([]);
 
+  // Helpers de URL/Deep-link
+  const pushUrl = (path: string) => {
+    try { window.history.pushState({}, '', path); } catch {}
+  };
+  const replaceUrl = (path: string) => {
+    try { window.history.replaceState({}, '', path); } catch {}
+  };
+  const getQueryParam = (name: string): string | null => {
+    try { return new URLSearchParams(window.location.search).get(name); } catch { return null; }
+  };
+  const getPathname = (): string => {
+    try { return window.location.pathname || '/'; } catch { return '/'; }
+  };
+  const fetchFamilyAndEnter = async (familyIdOrName: string) => {
+    const apiUrl = (import.meta as any).env?.VITE_API_URL || '';
+    // Primeiro tenta buscar membros por ID diretamente; se falhar, faz uma busca por nome/id
+    const trySetById = async (id: string) => {
+      try {
+        const [membersRes, docsRes] = await Promise.all([
+          fetch(`${apiUrl}/api/auth/family-members/${id}`),
+          fetch(`${apiUrl}/api/submissions/family/${id}`),
+        ]);
+        const [membersData, docsData] = await Promise.all([membersRes.json(), docsRes.json()]);
+        if (membersRes.ok && membersData.success) {
+          const membersDetailed = (membersData.members || []).map((m: any) => ({ id: m.id, name: m.name, customer_type: m.customer_type }));
+          const memberNames: string[] = membersDetailed.map((m: any) => m.name).filter(Boolean);
+          setFamilyMembers(membersDetailed);
+          setSelectedFamily({ id, name: membersData.familyName || (familyIdOrName || 'Família'), members: memberNames, documentsCount: 0 });
+          setFamilyDocuments(docsRes.ok && docsData.success ? (docsData.data || []) : []);
+          setCurrentScreen('documentsList');
+          return true;
+        }
+      } catch {}
+      return false;
+    };
+    const okById = await trySetById(familyIdOrName);
+    if (okById) return;
+    // Busca por nome/ID flexível
+    try {
+      const searchRes = await fetch(`${apiUrl}/api/auth/families/search?q=${encodeURIComponent(familyIdOrName)}`);
+      const searchData = await searchRes.json();
+      if (searchRes.ok && searchData.success) {
+        const list: Array<{ familiaId?: string; id?: string; familiaName?: string }> = searchData.families || [];
+        if (list.length > 0) {
+          const first = list[0];
+          const fid = (first.familiaId || first.id || '').toUpperCase();
+          await trySetById(fid);
+        }
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     const storedToken = localStorage.getItem('authToken');
     const persistedFamilyRaw = localStorage.getItem('selectedFamily');
+    const path = getPathname();
+    const familiaParam = getQueryParam('familia');
     if (storedToken) {
       handleLogin(storedToken);
-      if (persistedFamilyRaw) {
+      if (path.toLowerCase().startsWith('/documentos') && familiaParam) {
+        // Deep link tem prioridade sobre persistência local
+        fetchFamilyAndEnter(familiaParam);
+      } else if (persistedFamilyRaw) {
         try {
           const fam = JSON.parse(persistedFamilyRaw);
           if (fam && fam.id) {
             setSelectedFamily({ id: fam.id, name: fam.name || 'Família', members: fam.members || [], documentsCount: fam.documentsCount || 0 });
-            // Buscar membros e documentos atualizados e ir direto para a lista da família
             (async () => {
               try {
                 const apiUrl = (import.meta as any).env?.VITE_API_URL || '';
@@ -64,6 +120,21 @@ function App() {
         } catch {}
       }
     }
+    // Listener do botão voltar/avançar do navegador
+    const onPop = () => {
+      const p = getPathname();
+      const fam = getQueryParam('familia');
+      if (p.toLowerCase().startsWith('/documentos') && fam) {
+        fetchFamilyAndEnter(fam);
+      } else {
+        setSelectedFamily(null);
+        setFamilyDocuments([]);
+        setFamilyMembers([]);
+        setCurrentScreen('familySearch');
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   // Persistir contexto da família para sobreviver ao F5
@@ -152,6 +223,7 @@ function App() {
       // silencioso
     }
     setCurrentScreen('documentsList');
+    pushUrl(`/Documentos?familia=${encodeURIComponent(family.id)}`);
   };
 
   const handleAddFamilyDocument = () => {
@@ -244,7 +316,7 @@ function App() {
           <DocumentsListScreen
             family={selectedFamily}
             documents={familyDocuments}
-            onBack={() => setCurrentScreen('familySearch')}
+            onBack={() => { setCurrentScreen('familySearch'); replaceUrl('/'); }}
             onAddDocument={handleAddRequesterDocument}
             onAddFamilyDocument={handleAddFamilyDocument}
             members={familyMembers}
