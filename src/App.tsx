@@ -28,10 +28,48 @@ function App() {
 
   useEffect(() => {
     const storedToken = localStorage.getItem('authToken');
+    const persistedFamilyRaw = localStorage.getItem('selectedFamily');
     if (storedToken) {
       handleLogin(storedToken);
+      if (persistedFamilyRaw) {
+        try {
+          const fam = JSON.parse(persistedFamilyRaw);
+          if (fam && fam.id) {
+            setSelectedFamily({ id: fam.id, name: fam.name || 'Família', members: fam.members || [], documentsCount: fam.documentsCount || 0 });
+            // Buscar membros e documentos atualizados e ir direto para a lista da família
+            (async () => {
+              try {
+                const apiUrl = (import.meta as any).env?.VITE_API_URL || '';
+                const [membersRes, docsRes] = await Promise.all([
+                  fetch(`${apiUrl}/api/auth/family-members/${fam.id}`),
+                  fetch(`${apiUrl}/api/submissions/family/${fam.id}`),
+                ]);
+                const [membersData, docsData] = await Promise.all([membersRes.json(), docsRes.json()]);
+                if (membersRes.ok && membersData.success) {
+                  const membersDetailed = (membersData.members || []).map((m: any) => ({ id: m.id, name: m.name, customer_type: m.customer_type }));
+                  const memberNames: string[] = membersDetailed.map((m: any) => m.name).filter(Boolean);
+                  setFamilyMembers(membersDetailed);
+                  setSelectedFamily(prev => prev ? { ...prev, name: membersData.familyName || prev.name, members: memberNames } : prev);
+                }
+                setFamilyDocuments(docsRes.ok && docsData.success ? (docsData.data || []) : []);
+              } catch {}
+              setCurrentScreen('documentsList');
+            })();
+          }
+        } catch {}
+      }
     }
   }, []);
+
+  // Persistir contexto da família para sobreviver ao F5
+  useEffect(() => {
+    if (selectedFamily && selectedFamily.id) {
+      const { id, name, members = [], documentsCount = 0 } = selectedFamily;
+      localStorage.setItem('selectedFamily', JSON.stringify({ id, name, members, documentsCount }));
+    } else {
+      localStorage.removeItem('selectedFamily');
+    }
+  }, [selectedFamily]);
 
   const handleLogin = (tkn: string) => {
     try {

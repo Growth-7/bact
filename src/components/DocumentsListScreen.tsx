@@ -278,10 +278,23 @@ export default function DocumentsListScreen({ family, documents, members = [], o
                     const did = (d.idRequerente || '').toLowerCase();
                     return Boolean(did) && Boolean(mid) && did === mid;
                   };
-                  const lastDoc = sourceDocs.find(matcher);
-                  const docsForMember = sourceDocs.filter(matcher);
-                  const status = docsForMember.length > 0 && lastDoc?.documentType
-                    ? `Enviado: ${getDocumentTypeLabel(lastDoc.documentType)}`
+                  const docsForMember = sourceDocs
+                    .filter(matcher)
+                    .sort((a, b) => {
+                      const ta = a.uploadDate ? new Date(a.uploadDate).getTime() : 0;
+                      const tb = b.uploadDate ? new Date(b.uploadDate).getTime() : 0;
+                      return tb - ta;
+                    });
+                  const recentTypeLabels: string[] = [];
+                  for (const d of docsForMember) {
+                    const label = getDocumentTypeLabel(d.documentType || '');
+                    if (label && !recentTypeLabels.includes(label)) {
+                      recentTypeLabels.push(label);
+                    }
+                    if (recentTypeLabels.length >= 2) break;
+                  }
+                  const status = recentTypeLabels.length > 0
+                    ? `Enviado: ${recentTypeLabels.join(', ')}`
                     : 'Nenhum documento';
                   return (
                     <div key={m.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-200 min-h-[11rem] flex flex-col overflow-hidden">

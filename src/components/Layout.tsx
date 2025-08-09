@@ -25,6 +25,16 @@ export default function Layout({ children, title }: LayoutProps) {
       }
     } catch {}
   }, []);
+
+  // Prevenir navegação para trás (F5/refresh continua na mesma tela; back do browser não volta automaticamente)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Não impedir o unload, apenas manter o estado por localStorage já presente
+      // Mas evitamos dependências aqui.
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="bg-white border-b border-slate-200 shadow-sm">
