@@ -54,8 +54,9 @@ app.use((error: any, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-// Só inicia o servidor se não estiver no ambiente Vercel
-if (process.env.NODE_ENV !== 'production') {
+// Inicia o servidor quando não estiver em ambiente serverless (Vercel)
+// Em Docker/produção, NODE_ENV=production e precisamos iniciar o servidor.
+if (process.env.VERCEL !== '1') {
   app.listen(port, () => {
     console.log(`🚀 Servidor BACT rodando na porta ${port}`);
     console.log(`🔗 Health check: http://localhost:${port}/`);

@@ -50,4 +50,4 @@ COPY --from=builder /app/prisma ./prisma
 EXPOSE 3333
 
 # Comando para iniciar a aplicação
-CMD ["node", "dist/src/server.js"]
+CMD ["node", "dist/server.js"]
