@@ -500,6 +500,34 @@ export const getUserWeeklyActivity = async (req: Request, res: Response) => {
     }
 };
 
+export const listUserFamilies = async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  if (!userId) return res.status(400).json({ success: false, message: 'userId é obrigatório.' });
+  try {
+    const rows: Array<{ idFamilia: string | null; nomeFamilia: string | null; lastAt: Date; total: number }>
+      = await prisma.$queryRaw`
+        SELECT COALESCE("idFamilia", '') AS "idFamilia",
+               COALESCE("nomeFamilia", '') AS "nomeFamilia",
+               MAX("createdAt") AS "lastAt",
+               COUNT(*)::int AS total
+        FROM "Submission"
+        WHERE "userId" = ${userId} AND COALESCE("idFamilia", '') <> ''
+        GROUP BY COALESCE("idFamilia", ''), COALESCE("nomeFamilia", '')
+        ORDER BY MAX("createdAt") DESC
+      `;
+    const data = rows.map(r => ({
+      id: r.idFamilia || '',
+      name: r.nomeFamilia && r.nomeFamilia.trim().length > 0 ? r.nomeFamilia : (r.idFamilia || ''),
+      lastAt: r.lastAt,
+      total: Number(r.total || 0),
+    }));
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error('Erro ao listar famílias do usuário:', error);
+    return res.status(500).json({ success: false, message: 'Erro ao listar famílias do usuário.' });
+  }
+};
+
 export const markFamilyCompleted = async (req: Request, res: Response) => {
     const { familyId } = req.params;
     const { userId, familyName } = req.body as { userId?: string; familyName?: string };

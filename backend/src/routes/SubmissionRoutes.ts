@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { handleSubmission, getSubmissionStatus, listFamilySubmissions, getUserSubmissionStats, getUserWeeklyActivity, markFamilyCompleted, getUserSummary, updateDailyGoal } from '../controllers/SubmissionController.js';
+import { handleSubmission, getSubmissionStatus, listFamilySubmissions, getUserSubmissionStats, getUserWeeklyActivity, markFamilyCompleted, getUserSummary, updateDailyGoal, listUserFamilies } from '../controllers/SubmissionController.js';
 import { FileUploadMiddleware } from '../middleware/FileUploadMiddleware.js';
 
 const submissionRoutes = Router();
@@ -20,6 +20,7 @@ submissionRoutes.get('/user/:userId/weekly', getUserWeeklyActivity);
 submissionRoutes.post('/family/:familyId/complete', markFamilyCompleted);
 submissionRoutes.get('/user/:userId/summary', getUserSummary);
 submissionRoutes.patch('/user/:userId/daily-goal', updateDailyGoal);
+submissionRoutes.get('/user/:userId/families', listUserFamilies);
 
 export default submissionRoutes;
 

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Search, Users, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Search, Users, ArrowRight, ArrowLeft, Loader2, Image as ImageIcon } from 'lucide-react';
 import Layout from './Layout';
 import { Family } from '../types';
 
@@ -13,6 +13,23 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<Family[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const [myFamilies, setMyFamilies] = useState<Array<{ id: string; name: string; lastAt?: string; total?: number }>>([]);
+
+  useEffect(() => {
+    // Carregar famílias já enviadas pelo usuário logado
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) return;
+      const payload = JSON.parse(atob(token.split('.')[1] || ''));
+      const userId = payload?.id;
+      if (!userId) return;
+      const apiUrl = (import.meta as any).env?.VITE_API_URL || '';
+      fetch(`${apiUrl}/api/submissions/user/${userId}/families`)
+        .then(r => r.json())
+        .then(d => setMyFamilies(d.success ? (d.data || []) : []))
+        .catch(() => {});
+    } catch {}
+  }, []);
 
   const handleSearch = async () => {
     if (!searchTerm.trim()) return;
@@ -153,6 +170,35 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Seção de famílias já enviadas pelo usuário */}
+        {myFamilies.length > 0 && (
+          <div className="mt-10">
+            <h3 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
+              <Users className="w-5 h-5 text-emerald-600" /> Minhas Famílias
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {myFamilies.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => onFamilySelect({ id: f.id, name: f.name, members: [], documentsCount: 0 })}
+                  className="text-left border border-slate-200 rounded-xl p-4 hover:border-emerald-300 hover:bg-emerald-50 transition-all"
+                  title={`Abrir família ${f.name}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="bg-emerald-100 rounded-lg p-2">
+                      <Users className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-medium text-slate-900 truncate">{f.name}</div>
+                      <div className="text-xs text-slate-500 truncate">ID: {f.id}</div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

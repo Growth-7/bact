@@ -86,7 +86,7 @@ export default function Layout({ children, title }: LayoutProps) {
         </div>
       </header>
 
-      {user && showGreeting && (
+      {user && (
         <div className="bg-gradient-to-r from-blue-50 to-green-50 border-b border-slate-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             <div className="flex items-center gap-3 fade-in">
