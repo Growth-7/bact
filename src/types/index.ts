@@ -81,6 +81,13 @@ export interface UserStats {
   weeklyData: Array<{ date: string; count: number }>;
   totalUsers: number;
   rank: number;
+  perHourTarget?: number;
+  hoursElapsed?: number;
+  cumulativeExpected?: number;
+  hourlySeries?: number[];
+  cadenceStreakHours?: number;
+  pacingRatio?: number; // 0..inf
+  pacingStatus?: 'ahead' | 'onTrack' | 'behind' | 'farBehind';
 }
 
 export interface RankingUser {

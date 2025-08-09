@@ -625,6 +625,59 @@ export const getUserSummary = async (req: Request, res: Response) => {
         // Daily goal fixo conforme solicitação
         const dailyGoal = 336;
 
+        // Cadência por hora (Ofensiva baseada em consistência)
+        const SHIFT_START_HOUR = Number.parseInt(process.env.SHIFT_START_HOUR || '8', 10);
+        const SHIFT_DURATION_HOURS = Number.parseInt(process.env.SHIFT_DURATION_HOURS || '9', 10);
+        const shiftStart = new Date();
+        shiftStart.setHours(SHIFT_START_HOUR, 0, 0, 0);
+        const shiftEnd = new Date(shiftStart);
+        shiftEnd.setHours(shiftStart.getHours() + SHIFT_DURATION_HOURS);
+        const now = new Date();
+        const withinShift = now >= shiftStart && now <= shiftEnd;
+        const rawHoursElapsed = Math.floor((now.getTime() - shiftStart.getTime()) / (60 * 60 * 1000)) + 1;
+        const hoursElapsed = Math.max(0, Math.min(SHIFT_DURATION_HOURS, rawHoursElapsed));
+        const perHourTarget = SHIFT_DURATION_HOURS > 0 ? dailyGoal / SHIFT_DURATION_HOURS : dailyGoal;
+        const cumulativeExpected = Math.max(0, Math.min(dailyGoal, perHourTarget * hoursElapsed));
+
+        // Contagem por hora da janela de trabalho
+        let hourlyCounts: Array<{ hour: Date; count: number }> = [];
+        if (SHIFT_DURATION_HOURS > 0) {
+          hourlyCounts = await prisma.$queryRaw<Array<{ hour: Date; count: number }>>`
+            SELECT date_trunc('hour', "createdAt") AS hour, COUNT(*)::int AS count
+            FROM "Submission"
+            WHERE "userId" = ${userId}
+              AND "createdAt" >= ${shiftStart}
+              AND "createdAt" <= ${shiftEnd}
+            GROUP BY hour
+            ORDER BY hour ASC
+          `;
+        }
+        const hourToCount = new Map<string, number>();
+        hourlyCounts.forEach(r => hourToCount.set(new Date(r.hour).toISOString(), r.count));
+        const hourlySeries: number[] = [];
+        for (let i = 0; i < SHIFT_DURATION_HOURS; i++) {
+          const h = new Date(shiftStart);
+          h.setHours(shiftStart.getHours() + i);
+          const key = h.toISOString();
+          hourlySeries.push(hourToCount.get(key) || 0);
+        }
+        // Streak/hora: consecutivo de horas mais recentes atendendo >= 90% da meta/h
+        const threshold = Math.ceil(perHourTarget * 0.9);
+        let cadenceStreakHours = 0;
+        if (hoursElapsed > 0) {
+          for (let i = hoursElapsed - 1; i >= 0; i--) {
+            if (hourlySeries[i] >= threshold) cadenceStreakHours += 1;
+            else break;
+          }
+        }
+        const pacingDen = Math.max(1, Math.floor(cumulativeExpected));
+        const pacingRatio = pacingDen > 0 ? Number((todayCount / pacingDen).toFixed(3)) : 0;
+        let pacingStatus: 'ahead' | 'onTrack' | 'behind' | 'farBehind' = 'onTrack';
+        if (pacingRatio >= 1.05) pacingStatus = 'ahead';
+        else if (pacingRatio >= 0.9) pacingStatus = 'onTrack';
+        else if (pacingRatio >= 0.6) pacingStatus = 'behind';
+        else pacingStatus = 'farBehind';
+
         // Leaderboard (top N)
         const leaderboardRows: Array<{ id: string; username: string; total: number; r: number }> = await prisma.$queryRaw`
           WITH agg AS (
@@ -646,6 +699,14 @@ export const getUserSummary = async (req: Request, res: Response) => {
           weeklyData: weeklyData.map(d => ({ date: d.date, count: Number(d.count) || 0 })),
           totalUsers: Number(totalUsers) || 0,
           rank: Number(rank) || 0,
+          // Cadência/hora
+          perHourTarget: Number(perHourTarget) || 0,
+          hoursElapsed: Number(hoursElapsed) || 0,
+          cumulativeExpected: Math.floor(cumulativeExpected),
+          hourlySeries: hourlySeries.map(n => Number(n) || 0),
+          cadenceStreakHours: Number(cadenceStreakHours) || 0,
+          pacingRatio: Number(pacingRatio) || 0,
+          pacingStatus,
           aroundRank: aroundRank.map(r => ({
             id: r.id,
             username: r.username,

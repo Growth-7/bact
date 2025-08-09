@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { User, Trophy, Target, TrendingUp, Flame, Medal, FileText, Clock, X, Users } from 'lucide-react';
 import { UserStats, RankingUser } from '../types';
 import { getUserSummary } from '../services/user';
+import confetti from 'canvas-confetti';
 
 interface UserProfileProps {
   user: {
@@ -101,6 +102,23 @@ export default function UserProfile({ user, stats }: UserProfileProps) {
   const effective = summary || stats;
   const progressPercentage = Math.min((effective.todayCount / goal) * 100, 100);
 
+  const hasReachedGoal = effective.todayCount >= goal && goal > 0;
+  const farFromGoal = effective.todayCount < Math.max(1, Math.floor(goal * 0.25));
+
+  // Confete uma vez por dia/usuário
+  const confettiFiredRef = useRef(false);
+  useEffect(() => {
+    if (!hasReachedGoal) return;
+    const key = `confetti_${user.id}_${new Date().toISOString().slice(0,10)}`;
+    if (confettiFiredRef.current) return;
+    if (localStorage.getItem(key)) return;
+    confettiFiredRef.current = true;
+    localStorage.setItem(key, '1');
+    confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+    setTimeout(() => confetti({ particleCount: 80, spread: 90, angle: 60, origin: { x: 0 } }), 300);
+    setTimeout(() => confetti({ particleCount: 80, spread: 90, angle: 120, origin: { x: 1 } }), 300);
+  }, [hasReachedGoal, user.id]);
+
   // Simular dados do gráfico dos últimos 7 dias
   const last7Days = (effective.weeklyData || []).map((_: { date: string; count: number }, i: number) => {
     const date = new Date();
@@ -127,9 +145,17 @@ export default function UserProfile({ user, stats }: UserProfileProps) {
           onClick={() => setIsOpen(true)}
           className="flex items-center space-x-3 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 transition-all duration-200 hover:shadow-md group"
         >
-          {/* Avatar com Badge de Ofensiva */}
+          {/* Avatar com estados: dourado quando bateu meta; vermelho se longe da meta */}
           <div className="relative">
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-2.5 rounded-full group-hover:scale-105 transition-transform duration-200">
+            <div
+              className={
+                hasReachedGoal
+                  ? 'bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600 p-2.5 rounded-full ring-2 ring-yellow-300 shadow-md group-hover:scale-105 transition-transform duration-200'
+                  : farFromGoal
+                    ? 'bg-gradient-to-br from-red-500 to-red-600 p-2.5 rounded-full ring-2 ring-red-300 shadow-md group-hover:scale-105 transition-transform duration-200'
+                    : 'bg-gradient-to-br from-blue-500 to-blue-600 p-2.5 rounded-full group-hover:scale-105 transition-transform duration-200'
+              }
+            >
               <User className="w-5 h-5 text-white" />
             </div>
           </div>
@@ -200,7 +226,7 @@ export default function UserProfile({ user, stats }: UserProfileProps) {
         <div className="p-6 overflow-y-auto h-full pb-20">
           {/* Estatísticas Principais */}
           <div className="space-y-4 mb-6">
-            {/* Ofensiva */}
+              {/* Ofensiva (cadência/hora) */}
             <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-all duration-200 flex items-center space-x-4 group">
               <div className="bg-red-50 p-3 rounded-lg flex-shrink-0 relative overflow-hidden">
                 <Flame className="w-6 h-6 text-red-600 relative z-10" />
@@ -210,13 +236,28 @@ export default function UserProfile({ user, stats }: UserProfileProps) {
                 <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-red-400 to-transparent opacity-0 group-hover:opacity-100 group-hover:animate-ping" style={{ animationDelay: '0.2s' }}></div>
               </div>
               <div className="flex-1 relative z-10">
-                <div className="flex items-baseline space-x-2 mb-1">
-                  <div className="text-2xl font-bold text-slate-900">{effective.currentStreak}</div>
-                  <div className="text-sm text-slate-700 font-medium">Ofensiva</div>
-                </div>
-                <div className="text-xs text-slate-500">
-                  Recorde: {effective.longestStreak} dias
-                </div>
+                  {(() => {
+                    const perHourTarget = Math.max(1, Math.floor((effective as any).perHourTarget || 0));
+                    const cumulativeExpected = Math.max(0, (effective as any).cumulativeExpected || 0);
+                    const cadenceStreakHours = Math.max(0, (effective as any).cadenceStreakHours || 0);
+                    const pacingStatus = (effective as any).pacingStatus as string | undefined;
+                    const statusLabel = pacingStatus === 'ahead' ? 'Adiantado'
+                      : pacingStatus === 'onTrack' ? 'No ritmo'
+                      : pacingStatus === 'behind' ? 'Atrasando'
+                      : pacingStatus === 'farBehind' ? 'Bem atrás'
+                      : '-';
+                    return (
+                      <>
+                        <div className="flex items-baseline space-x-2 mb-1">
+                          <div className="text-2xl font-bold text-slate-900">{cadenceStreakHours}h</div>
+                          <div className="text-sm text-slate-700 font-medium">Ofensiva</div>
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          Meta/hora: {perHourTarget} • Esperado até agora: {cumulativeExpected} • Ritmo: {statusLabel}
+                        </div>
+                      </>
+                    );
+                  })()}
               </div>
             </div>
 
@@ -292,8 +333,8 @@ export default function UserProfile({ user, stats }: UserProfileProps) {
             </div>
             
             <div className="bg-slate-200 rounded-full h-2 overflow-hidden">
-              <div 
-                className="bg-blue-600 h-full rounded-full transition-all duration-500"
+              <div
+                className={`${hasReachedGoal ? 'bg-green-600' : farFromGoal ? 'bg-red-600' : 'bg-blue-600'} h-full rounded-full transition-all duration-500`}
                 style={{ width: `${progressPercentage}%` }}
               />
             </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import LoginScreen from './components/LoginScreen';
 import RegisterScreen from './components/RegisterScreen';
 import LocationSelectionScreen from './components/LocationSelectionScreen';
@@ -83,13 +83,36 @@ function App() {
     } catch {}
   };
 
+  // Deep-link pós-login (caso usuário acesse link sem estar autenticado)
+  const handledDeepLinkRef = useRef(false);
+  useEffect(() => {
+    if (!token || handledDeepLinkRef.current) return;
+    const path = getPathname().toLowerCase();
+    const familiaParam = getQueryParam('familia');
+    const submissionParam = getQueryParam('submission');
+    if (path.startsWith('/documentos') && familiaParam) {
+      handledDeepLinkRef.current = true;
+      fetchFamilyAndEnter(familiaParam);
+    } else if (path.startsWith('/upload') && familiaParam) {
+      handledDeepLinkRef.current = true;
+      fetchFamilyAndEnter(familiaParam).then(() => setCurrentScreen('upload'));
+    } else if (path.startsWith('/progresso') && submissionParam) {
+      handledDeepLinkRef.current = true;
+      setSubmissionId(submissionParam);
+      setCurrentScreen('progress');
+    } else if (path.startsWith('/sucesso')) {
+      handledDeepLinkRef.current = true;
+      setCurrentScreen('success');
+    }
+  }, [token]);
+
   useEffect(() => {
     const storedToken = localStorage.getItem('authToken');
     const persistedFamilyRaw = localStorage.getItem('selectedFamily');
     const path = getPathname();
     const familiaParam = getQueryParam('familia');
     const submissionParam = getQueryParam('submission');
-    const tipoParam = getQueryParam('tipo');
+    // const tipoParam = getQueryParam('tipo'); // removido por não uso
     if (storedToken) {
       handleLogin(storedToken);
       if (path.toLowerCase().startsWith('/documentos') && familiaParam) {
@@ -166,7 +189,11 @@ function App() {
       setToken(tkn);
       localStorage.setItem('authToken', tkn);
       setCurrentScreen('familySearch');
-      replaceUrl('/familias');
+      const p = getPathname().toLowerCase();
+      const hasDeepLink = p.startsWith('/documentos') || p.startsWith('/upload') || p.startsWith('/progresso') || p.startsWith('/sucesso');
+      if (!hasDeepLink) {
+        replaceUrl('/familias');
+      }
     } catch (error) {
       console.error("Failed to decode token:", error);
       handleLogout();
