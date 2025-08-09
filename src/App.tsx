@@ -26,6 +26,11 @@ function App() {
   const [finalSubmissionData, setFinalSubmissionData] = useState<{ bitrixDealId?: string; fileUrls?: string[] } | null>(null);
   const [pendingResetData, setPendingResetData] = useState<{ username: string; birthDate: string } | null>(null);
 
+  // Fluxo de documentos por família (declarado antes dos efeitos para evitar TDZ)
+  const [selectedFamily, setSelectedFamily] = useState<{ id: string; name: string; members: string[]; documentsCount: number } | null>(null);
+  const [familyDocuments, setFamilyDocuments] = useState<DocumentSubmission[]>([]);
+  const [familyMembers, setFamilyMembers] = useState<Array<{ id: string; name: string; customer_type: string }>>([]);
+
   useEffect(() => {
     const storedToken = localStorage.getItem('authToken');
     const persistedFamilyRaw = localStorage.getItem('selectedFamily');
@@ -127,11 +132,6 @@ function App() {
     setFinalSubmissionData(null);
     setCurrentScreen('familySearch');
   };
-
-  // Fluxo de documentos por família
-  const [selectedFamily, setSelectedFamily] = useState<{ id: string; name: string; members: string[]; documentsCount: number } | null>(null);
-  const [familyDocuments, setFamilyDocuments] = useState<DocumentSubmission[]>([]);
-  const [familyMembers, setFamilyMembers] = useState<Array<{ id: string; name: string; customer_type: string }>>([]);
 
   const handleFamilySelect = async (family: { id: string; name: string; members: string[]; documentsCount: number }) => {
     setSelectedFamily({ ...family, members: family.members || [] });
