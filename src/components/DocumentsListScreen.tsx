@@ -270,6 +270,14 @@ export default function DocumentsListScreen({ family, documents, members = [], o
                   grouped.set(key, list);
                 }
 
+                const getIconForLabel = (label: string): string => {
+                  const normalized = (label || '').toLowerCase();
+                  if (normalized.includes('nascimento')) return '👶';
+                  if (normalized.includes('casamento')) return '❤️';
+                  if (normalized.includes('óbito') || normalized.includes('obito')) return '💀';
+                  return '📄';
+                };
+
                 const renderCard = (m: { id: string; name: string; customer_type: string }) => {
                   const mid = (m.id || '').toLowerCase();
                   const mname = (m.name || '').toLowerCase().trim();
@@ -285,17 +293,17 @@ export default function DocumentsListScreen({ family, documents, members = [], o
                       const tb = b.uploadDate ? new Date(b.uploadDate).getTime() : 0;
                       return tb - ta;
                     });
-                  const recentTypeLabels: string[] = [];
+                  const recentByType: Array<{ label: string; url?: string }> = [];
+                  const seen = new Set<string>();
                   for (const d of docsForMember) {
                     const label = getDocumentTypeLabel(d.documentType || '');
-                    if (label && !recentTypeLabels.includes(label)) {
-                      recentTypeLabels.push(label);
-                    }
-                    if (recentTypeLabels.length >= 2) break;
+                    if (!label || seen.has(label)) continue;
+                    seen.add(label);
+                    const url = Array.isArray((d as any).fileUrls) && (d as any).fileUrls.length > 0 ? (d as any).fileUrls[0] : undefined;
+                    recentByType.push({ label, url });
+                    if (recentByType.length >= 2) break;
                   }
-                  const status = recentTypeLabels.length > 0
-                    ? `Enviado: ${recentTypeLabels.join(', ')}`
-                    : 'Nenhum documento';
+                  const hasDocs = recentByType.length > 0;
                   return (
                     <div key={m.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-200 min-h-[11rem] flex flex-col overflow-hidden">
                       <div className="flex items-center space-x-4 mb-3">
@@ -306,12 +314,32 @@ export default function DocumentsListScreen({ family, documents, members = [], o
                           <h4 className="text-lg font-semibold text-slate-900 truncate" title={m.name}>{m.name}</h4>
                           <p className="text-slate-500 text-sm">{translateCustomerType(m.customer_type)}</p>
                           <div className="mt-1 text-xs">
-                            {docsForMember.length > 0 ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
-                                {status}
-                              </span>
+                            {hasDocs ? (
+                              <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+                                <span>Enviado</span>
+                                {recentByType.map((t, idx) => {
+                                  const icon = getIconForLabel(t.label);
+                                  const content = (
+                                    <span key={`${t.label}-${idx}`} title={t.label} aria-label={t.label}>
+                                      {icon}
+                                    </span>
+                                  );
+                                  return t.url ? (
+                                    <a
+                                      key={`${t.label}-${idx}-a`}
+                                      href={t.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title={`${t.label} (abrir)`}
+                                      className="hover:opacity-80"
+                                    >
+                                      {content}
+                                    </a>
+                                  ) : content;
+                                })}
+                              </div>
                             ) : (
-                              <span className="text-slate-400">{status}</span>
+                              <span className="text-slate-400">Nenhum documento</span>
                             )}
                           </div>
                         </div>
