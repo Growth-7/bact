@@ -58,6 +58,7 @@ function App() {
 
   const handleCompletion = (data: { bitrixDealId?: string; fileUrls?: string[] }) => {
     setFinalSubmissionData(data);
+    // Após concluir um envio, permanece no contexto da família: mostrar success e permitir voltar para a lista
     setCurrentScreen('success');
     if (selectedFamily) {
       const apiUrl = (import.meta as any).env?.VITE_API_URL || '';
@@ -69,11 +70,24 @@ function App() {
   };
 
   const handleReset = () => {
-    setCurrentScreen('familySearch');
+    // Após um envio, voltar para a lista da família atual, mantendo o contexto
+    setCurrentScreen(selectedFamily ? 'documentsList' : 'familySearch');
     setDocumentData(null);
     setSelectedLocation(null);
     setSubmissionId(null);
     setFinalSubmissionData(null);
+  };
+
+  const handleCompleteFamily = () => {
+    // Ao concluir família, limpar contexto e voltar para a busca
+    setSelectedFamily(null);
+    setFamilyDocuments([]);
+    setFamilyMembers([]);
+    setDocumentData(null);
+    setSelectedLocation(null);
+    setSubmissionId(null);
+    setFinalSubmissionData(null);
+    setCurrentScreen('familySearch');
   };
 
   // Fluxo de documentos por família
@@ -197,6 +211,7 @@ function App() {
             onAddFamilyDocument={handleAddFamilyDocument}
             members={familyMembers}
             onAddDocumentForRequester={handleAddRequesterDocumentFor}
+            onCompleteFamily={handleCompleteFamily}
           />
         );
       }

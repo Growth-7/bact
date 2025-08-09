@@ -11,9 +11,10 @@ interface DocumentsListScreenProps {
   onAddDocument: () => void;
   onAddDocumentForRequester?: (member: { id: string; name: string }) => void;
   onAddFamilyDocument: () => void;
+  onCompleteFamily: () => void;
 }
 
-export default function DocumentsListScreen({ family, documents, members = [], onBack, onAddDocument, onAddDocumentForRequester, onAddFamilyDocument }: DocumentsListScreenProps) {
+export default function DocumentsListScreen({ family, documents, members = [], onBack, onAddDocument, onAddDocumentForRequester, onAddFamilyDocument, onCompleteFamily }: DocumentsListScreenProps) {
   const [selectedRequester, setSelectedRequester] = useState<string | null>(null);
   const [selectedFamilyDocs, setSelectedFamilyDocs] = useState<boolean>(false);
 
@@ -493,8 +494,7 @@ export default function DocumentsListScreen({ family, documents, members = [], o
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ userId, familyName: family.name })
                 });
-                // Opcional: feedback visual
-                alert('Família marcada como concluída!');
+                onCompleteFamily();
               } catch {}
             }}
             className="px-6 py-3 rounded-lg bg-green-600 text-white hover:bg-green-700"
