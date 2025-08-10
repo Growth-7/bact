@@ -18,10 +18,15 @@ export default function Layout({ children, title }: LayoutProps) {
     const hour = now.getHours();
     const day = now.getDay(); // 0=Dom,1=Seg,...,5=Sex
     const base = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+    const variationsMorning = ['como vai', 'vamos com tudo', 'ótimo trabalho', 'prontos para bater a meta'];
+    const variationsAfternoon = ['seguimos firmes', 'força total', 'boa produtividade', 'vamos acelerar'];
+    const variationsEvening = ['ótimo encerramento', 'excelente desempenho hoje', 'parabéns pelo foco', 'boa noite de descanso'];
+    const pick = (arr: string[]) => arr[Math.floor(((now.getHours()*3600+now.getMinutes()*60+now.getSeconds())%arr.length))];
+    const tail = hour < 12 ? pick(variationsMorning) : hour < 18 ? pick(variationsAfternoon) : pick(variationsEvening);
     let extra = '';
     if (day === 1) extra = ' • Vamos começar a semana!';
     if (day === 5) extra = ' • Ótima sexta!';
-    return `${base}, ${user.username}${extra}`;
+    return `${base}, ${user.username} • ${tail}!${extra}`;
   }, [user]);
   useEffect(() => {
     // tentar extrair userId do token localStorage, se existir

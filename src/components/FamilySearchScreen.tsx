@@ -14,6 +14,7 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
   const [searchResults, setSearchResults] = useState<Family[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [myFamilies, setMyFamilies] = useState<Array<{ id: string; name: string; lastAt?: string; total?: number }>>([]);
+  const [filter, setFilter] = useState('');
 
   useEffect(() => {
     // Carregar famílias já enviadas pelo usuário logado
@@ -176,11 +177,25 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
         {/* Seção de famílias já enviadas pelo usuário */}
         {myFamilies.length > 0 && (
           <div className="mt-10">
-            <h3 className="text-xl font-semibold text-slate-900 mb-4 flex items-center gap-2">
-              <Users className="w-5 h-5 text-emerald-600" /> Minhas Famílias
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
+                <Users className="w-5 h-5 text-emerald-600" /> Minhas Famílias
+                <span className="ml-2 text-sm text-slate-500 font-normal">{myFamilies.length}</span>
+              </h3>
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder="Filtrar..."
+                  className="pl-8 pr-3 py-1.5 border rounded-md text-sm"
+                />
+              </div>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {myFamilies.map((f) => (
+              {myFamilies
+                .filter(f => !filter.trim() || f.name.toLowerCase().includes(filter.toLowerCase()) || f.id.toLowerCase().includes(filter.toLowerCase()))
+                .map((f) => (
                 <button
                   key={f.id}
                   onClick={() => onFamilySelect({ id: f.id, name: f.name, members: [], documentsCount: 0 })}
@@ -193,7 +208,7 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
                     </div>
                     <div className="min-w-0">
                       <div className="font-medium text-slate-900 truncate">{f.name}</div>
-                      <div className="text-xs text-slate-500 truncate">ID: {f.id}</div>
+                      <div className="text-xs text-slate-500 truncate">ID: {f.id} • {f.total || 0} docs</div>
                     </div>
                   </div>
                 </button>
