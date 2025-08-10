@@ -77,6 +77,7 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
   return (
     <Layout title="Buscar Família">
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 fade-in">
+        {/* Saudação também nesta tela (herdada do Layout no topo) */}
         <div className="mb-8">
           <p className="text-slate-600 mb-6">
             Digite o ID da família ou nome da família para buscar no sistema.

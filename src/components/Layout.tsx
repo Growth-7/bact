@@ -12,9 +12,15 @@ export default function Layout({ children, title }: LayoutProps) {
   const [summary, setSummary] = useState<any | null>(null);
   const [user, setUser] = useState<{ id: string; username: string } | null>(null);
   const [showGreeting, setShowGreeting] = useState(false);
+  const [now, setNow] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
   const greeting = useMemo(() => {
     if (!user) return '';
-    const now = new Date();
     const hour = now.getHours();
     const day = now.getDay(); // 0=Dom,1=Seg,...,5=Sex
     const base = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
@@ -27,7 +33,7 @@ export default function Layout({ children, title }: LayoutProps) {
     if (day === 1) extra = ' • Vamos começar a semana!';
     if (day === 5) extra = ' • Ótima sexta!';
     return `${base}, ${user.username} • ${tail}!${extra}`;
-  }, [user]);
+  }, [user, now]);
   useEffect(() => {
     // tentar extrair userId do token localStorage, se existir
     try {
