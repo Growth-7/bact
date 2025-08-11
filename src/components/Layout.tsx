@@ -6,12 +6,12 @@ import { getUserSummary } from '../services/user';
 interface LayoutProps {
   children: React.ReactNode;
   title?: string;
+  showGreeting?: boolean;
 }
 
-export default function Layout({ children, title }: LayoutProps) {
+export default function Layout({ children, title, showGreeting = false }: LayoutProps) {
   const [summary, setSummary] = useState<any | null>(null);
   const [user, setUser] = useState<{ id: string; username: string } | null>(null);
-  const [showGreeting, setShowGreeting] = useState(false);
   const [now, setNow] = useState<Date>(new Date());
 
   useEffect(() => {
@@ -24,14 +24,29 @@ export default function Layout({ children, title }: LayoutProps) {
     const hour = now.getHours();
     const day = now.getDay(); // 0=Dom,1=Seg,...,5=Sex
     const base = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
-    const variationsMorning = ['como vai', 'vamos com tudo', 'ótimo trabalho', 'prontos para bater a meta'];
-    const variationsAfternoon = ['seguimos firmes', 'força total', 'boa produtividade', 'vamos acelerar'];
-    const variationsEvening = ['ótimo encerramento', 'excelente desempenho hoje', 'parabéns pelo foco', 'boa noite de descanso'];
+    const variationsMorning = [
+      'vamos começar com o pé direito',
+      'energia alta e foco na execução',
+      'agenda clara, entregas com qualidade',
+      'ritmo leve e consistente'
+    ];
+    const variationsAfternoon = [
+      'seguimos entregando com ritmo',
+      'meio do dia, foco total nas prioridades',
+      'qualidade + velocidade, do jeito certo',
+      'vamos acelerar com estratégia'
+    ];
+    const variationsEvening = [
+      'fechando o dia com chave de ouro',
+      'reta final — consistência vence',
+      'ótimo ritmo hoje, parabéns',
+      'últimos ajustes e partiu descanso'
+    ];
     const pick = (arr: string[]) => arr[Math.floor(((now.getHours()*3600+now.getMinutes()*60+now.getSeconds())%arr.length))];
     const tail = hour < 12 ? pick(variationsMorning) : hour < 18 ? pick(variationsAfternoon) : pick(variationsEvening);
     let extra = '';
-    if (day === 1) extra = ' • Vamos começar a semana!';
-    if (day === 5) extra = ' • Ótima sexta!';
+    if (day === 1) extra = ' • vamos abrir a semana bonito';
+    if (day === 5) extra = ' • sextou com S de sucesso';
     return `${base}, ${user.username} • ${tail}!${extra}`;
   }, [user, now]);
   useEffect(() => {
@@ -45,10 +60,6 @@ export default function Layout({ children, title }: LayoutProps) {
       if (userId) {
         setUser({ id: userId, username });
         getUserSummary(userId).then((s) => s && setSummary(s)).catch(() => {});
-        // Exibir saudação breve após login/carregamento
-        setShowGreeting(true);
-        const t = setTimeout(() => setShowGreeting(false), 4000);
-        return () => clearTimeout(t);
       }
     } catch {}
   }, []);
@@ -97,12 +108,12 @@ export default function Layout({ children, title }: LayoutProps) {
         </div>
       </header>
 
-      {user && (
+      {user && showGreeting && (
         <div className="bg-gradient-to-r from-blue-50 to-green-50 border-b border-slate-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            <div className="flex items-center gap-3 fade-in">
-              <span className="text-rose-500">❋</span>
-              <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-800">{greeting}</h2>
+            <div className="flex flex-col items-center gap-3 fade-in text-center">
+              <FileText className="w-8 h-8 text-blue-600" />
+              <h2 className="text-2xl md:text-3xl font-semibold tracking-tight text-slate-800">{greeting}</h2>
             </div>
           </div>
         </div>

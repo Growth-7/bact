@@ -75,7 +75,7 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
   };
 
   return (
-    <Layout title="Buscar Família">
+    <Layout title="Buscar Família" showGreeting>
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 fade-in">
         {/* Saudação também nesta tela (herdada do Layout no topo) */}
         <div className="mb-8">
