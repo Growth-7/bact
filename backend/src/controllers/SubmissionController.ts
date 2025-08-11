@@ -257,29 +257,59 @@ async function processSubmissionAsync(submissionId: string, body: any, files: Ex
         const BITRIX_WEBHOOK_URL = process.env.BITRIX_WEBHOOK_URL;
         if (!BITRIX_WEBHOOK_URL) throw new Error("Webhook do Bitrix24 não configurado.");
 
+        const webhookBase = BITRIX_WEBHOOK_URL.endsWith('/') ? BITRIX_WEBHOOK_URL : `${BITRIX_WEBHOOK_URL}/`;
+
         const bitrixDealTitle = `${documentType} - ${submissionType === 'familia' ? nomeFamilia : nomeRequerente || nomeFamilia}`;
+
+        // Calcular tamanho aproximado do payload de anexos base64
+        const approxBytes = bitrixFiles.reduce((acc, f) => acc + (f.data?.length || 0), 0) * 0.75; // base64 -> bytes (~)
+        const MAX_BYTES = Number(process.env.BITRIX_MAX_ATTACH_BYTES || 3_000_000); // ~3MB por segurança
+        const shouldOmitAttachments = approxBytes > MAX_BYTES;
+
+        const fields: any = {
+          title: bitrixDealTitle,
+          ufCrm48IdFamilia: String(idFamilia || ""),
+          ufCrm48IdRequerente: String(idRequerente || ""),
+          ufCrm48LinkDrive: uploadedFileUrls,
+          ufCrm48IdUsuario: Number(bitrixUserId),
+        };
+        if (!shouldOmitAttachments) {
+          fields.ufCrm48DocumentoScaneado = bitrixFiles.map(f => [f.filename, f.data]);
+        } else {
+          fields.ufCrm48DocumentoScaneado = [];
+        }
+
         const bitrixData = {
-            entityTypeId: 1132,
-            fields: {
-                title: bitrixDealTitle,
-                ufCrm48IdFamilia: String(idFamilia || ""),
-                ufCrm48IdRequerente: String(idRequerente || ""),
-                ufCrm48LinkDrive: uploadedFileUrls,
-                ufCrm48IdUsuario: Number(bitrixUserId),
-                ufCrm48DocumentoScaneado: bitrixFiles.map(f => [f.filename, f.data])
-            }
+          entityTypeId: 1132,
+          fields,
         };
 
-        const bitrixResponse = await axios.post(`${BITRIX_WEBHOOK_URL}crm.item.add.json`, bitrixData);
-        const bitrixDealId = bitrixResponse.data.result.item.id;
+        // Retry simples em caso de 5xx (ex.: 502 Bitrix)
+        async function postWithRetry(url: string, data: any, attempts = 3): Promise<any> {
+          let lastErr: any = null;
+          for (let i = 0; i < attempts; i++) {
+            try {
+              return await axios.post(url, data, { timeout: 15000 });
+            } catch (err: any) {
+              lastErr = err;
+              const status = err?.response?.status;
+              if (status && status < 500) break; // não retry em 4xx
+              await new Promise(r => setTimeout(r, 800 * (i + 1)));
+            }
+          }
+          throw lastErr;
+        }
+
+        const bitrixResponse = await postWithRetry(`${webhookBase}crm.item.add.json`, bitrixData);
+        const bitrixDealId = bitrixResponse?.data?.result?.item?.id || bitrixResponse?.data?.result?.id || null;
 
         await prisma.submission.update({
             where: { id: submissionId },
-            data: {
-                bitrixDealId: bitrixDealId.toString(),
-                status: 'COMPLETED',
-                statusDetails: 'Processo concluído com sucesso!',
-            },
+          data: {
+              bitrixDealId: bitrixDealId ? String(bitrixDealId) : undefined,
+              status: 'COMPLETED',
+              statusDetails: shouldOmitAttachments ? 'Concluído: anexos enviados via Drive (payload ao Bitrix reduzido)' : 'Processo concluído com sucesso!',
+          },
         });
 
     } catch (error: any) {
