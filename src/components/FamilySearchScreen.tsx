@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Search, Users, ArrowRight, ArrowLeft, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Search, Users, ArrowRight, ArrowLeft, Loader2, PlusCircle } from 'lucide-react';
 import Layout from './Layout';
 import { Family } from '../types';
+import AddFamilyModal from './AddFamilyModal';
 
 interface FamilySearchScreenProps {
   onFamilySelect: (family: Family) => void;
@@ -15,6 +16,11 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
   const [hasSearched, setHasSearched] = useState(false);
   const [myFamilies, setMyFamilies] = useState<Array<{ id: string; name: string; lastAt?: string; total?: number }>>([]);
   const [filter, setFilter] = useState('');
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
+  const supabaseKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
 
   useEffect(() => {
     // Carregar famílias já enviadas pelo usuário logado
@@ -22,13 +28,24 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
       const token = localStorage.getItem('authToken');
       if (!token) return;
       const payload = JSON.parse(atob(token.split('.')[1] || ''));
-      const userId = payload?.id;
-      if (!userId) return;
-      const apiUrl = (import.meta as any).env?.VITE_API_URL || '';
-      fetch(`${apiUrl}/api/submissions/user/${userId}/families`)
-        .then(r => r.json())
-        .then(d => setMyFamilies(d.success ? (d.data || []) : []))
-        .catch(() => {});
+      const currentUserId = payload?.id;
+      if (currentUserId) {
+        setUserId(currentUserId);
+        const apiUrl = (import.meta as any).env?.VITE_API_URL || '';
+        fetch(`${apiUrl}/api/submissions/user/${currentUserId}/families`)
+          .then(r => r.json())
+          .then(d => {
+            if (d.success && Array.isArray(d.data)) {
+              const uniqueFamilies = Array.from(
+                new Map(d.data.map((f: any) => [f.id, f])).values()
+              ) as { id: string; name: string; lastAt?: string; total?: number }[];
+              setMyFamilies(uniqueFamilies);
+            } else {
+              setMyFamilies([]);
+            }
+          })
+          .catch(() => {});
+      }
     } catch {}
   }, []);
 
@@ -74,6 +91,16 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
     }
   };
 
+  const handleFamilyAdded = (familyId: string, familyName: string) => {
+    const newFamily: Family = {
+      id: familyId,
+      name: familyName,
+      members: [],
+      documentsCount: 0,
+    };
+    onFamilySelect(newFamily);
+  };
+
   return (
     <Layout title="Buscar Família" showGreeting>
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 fade-in">
@@ -107,6 +134,14 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
                 <Search className="w-4 h-4" />
               )}
               <span>Buscar</span>
+            </button>
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              title="Adicionar uma nova família"
+              className="bg-green-600 hover:bg-green-700 text-white font-semibold py-4 px-8 rounded-xl transition-all duration-200 flex items-center space-x-2 transform hover:scale-105 shadow-lg hover:shadow-xl"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Nova Família</span>
             </button>
           </div>
         </div>
@@ -230,6 +265,14 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
           </button>
         </div>
       </div>
+      <AddFamilyModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onFamilyAdd={handleFamilyAdded}
+        supabaseUrl={supabaseUrl}
+        supabaseKey={supabaseKey}
+        userId={userId}
+      />
     </Layout>
   );
 }

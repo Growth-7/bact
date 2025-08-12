@@ -28,7 +28,7 @@ export default function UserProfile({ user, stats }: UserProfileProps) {
   }, [user.id]);
 
   const currentUserRank = (summary || stats).rank;
-  const rankDisplay = currentUserRank && currentUserRank > 0 ? `#${currentUserRank}` : '#-';
+  const rankDisplay = currentUserRank && currentUserRank > 0 ? `#${currentUserRank}` : 'N/A';
   const totalUsersDisplay = (summary || stats).totalUsers || 0;
   const topRank: RankingUser[] = (((summary as any)?.topRank) || []).map((u: any) => ({
     id: u.id,
@@ -298,7 +298,13 @@ export default function UserProfile({ user, stats }: UserProfileProps) {
                   <div className="text-sm text-slate-700 font-medium">Posição</div>
                 </div>
                 <div className="text-xs text-slate-500">
-                  {getRankBadge(currentUserRank).icon} Continue assim!
+                  {currentUserRank > 0 ? (
+                    <>
+                      {getRankBadge(currentUserRank).icon} Continue assim!
+                    </>
+                  ) : (
+                    'Faça envios para entrar no rank!'
+                  )}
                 </div>
               </div>
             </div>

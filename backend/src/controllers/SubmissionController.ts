@@ -620,27 +620,23 @@ export const getUserSummary = async (req: Request, res: Response) => {
             const k = d.toISOString().slice(0,10);
             weeklyData.push({ date: k, count: dayMap.get(k) || 0 });
         }
-        // streaks
-        let currentStreak = 0; let longestStreak = 0; let temp = 0;
-        for (let i = 59; i >= 0; i--) {
-            const d = new Date(); d.setDate(d.getDate()-i); d.setHours(0,0,0,0);
-            const k = d.toISOString().slice(0,10);
-            const c = dayMap.get(k) || 0;
-            if (c > 0) { temp += 1; longestStreak = Math.max(longestStreak, temp); }
-            else { temp = 0; }
-            if (k === todayKey) currentStreak = temp;
-        }
+        // streaks (REMOVIDO - AGORA USAMOS APENAS CADENCE/HORA)
+        const currentStreak = 0; 
+        const longestStreak = 0;
 
-        // Ranking com janela e posição exata + vizinhança
+        // Ranking com janela e posição exata + vizinhança (BASEADO EM HOJE)
         const [{ count: totalUsers }]: Array<{ count: number }> = await prisma.$queryRaw`
           SELECT COUNT(*)::int AS count FROM (
-            SELECT "userId" FROM "Submission" GROUP BY "userId"
+            SELECT "userId" FROM "Submission" 
+            WHERE "createdAt" >= ${todayStart} AND "createdAt" <= ${todayEnd}
+            GROUP BY "userId"
           ) t
         `;
         const neighbors: Array<{ id: string; username: string; total: number; r: number }> = await prisma.$queryRaw`
           WITH agg AS (
             SELECT u."id", u."username", COUNT(s.*)::int AS total
             FROM "Submission" s JOIN "User" u ON u."id" = s."userId"
+            WHERE s."createdAt" >= ${todayStart} AND s."createdAt" <= ${todayEnd}
             GROUP BY u."id", u."username"
           ), ranked AS (
             SELECT id, username, total, (RANK() OVER (ORDER BY total DESC))::int AS r FROM agg
@@ -650,8 +646,6 @@ export const getUserSummary = async (req: Request, res: Response) => {
           SELECT ranked.* FROM ranked, me WHERE ranked.r BETWEEN me.my_rank - 2 AND me.my_rank + 2 ORDER BY ranked.r ASC
         `;
         const my = neighbors.find(n => n.id === userId);
-        // Se o usuário não tiver submissões ainda, não aparece no ranking.
-        // Nesse caso, definimos rank = 0 para indicar "sem posição".
         const rank = my ? my.r : 0;
         const aroundRank = neighbors.map(n => ({
           id: n.id,
@@ -662,11 +656,12 @@ export const getUserSummary = async (req: Request, res: Response) => {
           currentStreak: 0,
         }));
 
-        // Top 3 geral
+        // Top 3 geral (BASEADO EM HOJE)
         const topRows: Array<{ id: string; username: string; total: number }> = await prisma.$queryRaw`
           WITH agg AS (
             SELECT u."id", u."username", COUNT(s.*)::int AS total
             FROM "Submission" s JOIN "User" u ON u."id" = s."userId"
+            WHERE s."createdAt" >= ${todayStart} AND s."createdAt" <= ${todayEnd}
             GROUP BY u."id", u."username"
           )
           SELECT * FROM agg ORDER BY total DESC LIMIT 3
@@ -684,22 +679,38 @@ export const getUserSummary = async (req: Request, res: Response) => {
         const dailyGoal = 336;
 
         // Cadência por hora (Ofensiva baseada em consistência)
-        const SHIFT_START_HOUR = Number.parseInt(process.env.SHIFT_START_HOUR || '8', 10);
-        const SHIFT_DURATION_HOURS = Number.parseInt(process.env.SHIFT_DURATION_HOURS || '9', 10);
-        const shiftStart = new Date();
-        shiftStart.setHours(SHIFT_START_HOUR, 0, 0, 0);
+        // Horário de turno fixo (10:00-19:00 BRT) com ajuste de fuso horário.
+        const SHIFT_START_HOUR_BRT = 10;
+        const SHIFT_DURATION_HOURS = 9;
+        const BRT_OFFSET_HOURS = -3;
+
+        const now = new Date(); // Data/hora atual em UTC
+
+        // Calcula o início e fim do turno em UTC
+        const shiftStart = new Date(now);
+        shiftStart.setUTCHours(SHIFT_START_HOUR_BRT - BRT_OFFSET_HOURS, 0, 0, 0);
+
+        // Se a hora atual em UTC for antes do início do turno em UTC, o turno é do dia anterior.
+        if (now < shiftStart) {
+          shiftStart.setUTCDate(shiftStart.getUTCDate() - 1);
+        }
+        
         const shiftEnd = new Date(shiftStart);
-        shiftEnd.setHours(shiftStart.getHours() + SHIFT_DURATION_HOURS);
-        const now = new Date();
+        shiftEnd.setUTCHours(shiftStart.getUTCHours() + SHIFT_DURATION_HOURS);
+
         const withinShift = now >= shiftStart && now <= shiftEnd;
-        const rawHoursElapsed = Math.floor((now.getTime() - shiftStart.getTime()) / (60 * 60 * 1000)) + 1;
-        const hoursElapsed = Math.max(0, Math.min(SHIFT_DURATION_HOURS, rawHoursElapsed));
+        
+        let hoursElapsed = 0;
+        if (withinShift) {
+          hoursElapsed = Math.floor((now.getTime() - shiftStart.getTime()) / (1000 * 60 * 60)) + 1;
+        }
+
         const perHourTarget = SHIFT_DURATION_HOURS > 0 ? dailyGoal / SHIFT_DURATION_HOURS : dailyGoal;
         const cumulativeExpected = Math.max(0, Math.min(dailyGoal, perHourTarget * hoursElapsed));
 
         // Contagem por hora da janela de trabalho
         let hourlyCounts: Array<{ hour: Date; count: number }> = [];
-        if (SHIFT_DURATION_HOURS > 0) {
+        if (withinShift) {
           hourlyCounts = await prisma.$queryRaw<Array<{ hour: Date; count: number }>>`
             SELECT date_trunc('hour', "createdAt") AS hour, COUNT(*)::int AS count
             FROM "Submission"
@@ -715,7 +726,7 @@ export const getUserSummary = async (req: Request, res: Response) => {
         const hourlySeries: number[] = [];
         for (let i = 0; i < SHIFT_DURATION_HOURS; i++) {
           const h = new Date(shiftStart);
-          h.setHours(shiftStart.getHours() + i);
+          h.setUTCHours(shiftStart.getUTCHours() + i);
           const key = h.toISOString();
           hourlySeries.push(hourToCount.get(key) || 0);
         }
@@ -736,11 +747,12 @@ export const getUserSummary = async (req: Request, res: Response) => {
         else if (pacingRatio >= 0.6) pacingStatus = 'behind';
         else pacingStatus = 'farBehind';
 
-        // Leaderboard (top N)
+        // Leaderboard (top N) (BASEADO EM HOJE)
         const leaderboardRows: Array<{ id: string; username: string; total: number; r: number }> = await prisma.$queryRaw`
           WITH agg AS (
             SELECT u."id", u."username", COUNT(s.*)::int AS total
             FROM "Submission" s JOIN "User" u ON u."id" = s."userId"
+            WHERE s."createdAt" >= ${todayStart} AND s."createdAt" <= ${todayEnd}
             GROUP BY u."id", u."username"
           ), ranked AS (
             SELECT id, username, total, (RANK() OVER (ORDER BY total DESC))::int AS r FROM agg
@@ -761,8 +773,8 @@ export const getUserSummary = async (req: Request, res: Response) => {
         const payload = {
           totalSubmissions: Number(totalSubmissions) || 0,
           todayCount: Number(todayCount) || 0,
-          currentStreak: Number(currentStreak) || 0,
-          longestStreak: Number(longestStreak) || 0,
+          currentStreak: Number(currentStreak) || 0, // MANTIDO POR COMPATIBILIDADE, MAS ZERADO
+          longestStreak: Number(longestStreak) || 0, // MANTIDO POR COMPATIBILIDADE, MAS ZERADO
           dailyGoal: Number(dailyGoal) || 0,
           weeklyData: weeklyData.map(d => ({ date: d.date, count: Number(d.count) || 0 })),
           totalUsers: Number(totalUsers) || 0,
