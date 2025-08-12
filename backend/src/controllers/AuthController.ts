@@ -294,7 +294,7 @@ export class AuthController {
       // DEBUG: Logar as chaves do objeto prisma para ver os modelos disponíveis
       console.log('Modelos disponíveis no Prisma Client:', Object.keys(prisma));
 
-      await prisma.family_cache.create({
+      await prisma.familyCache.create({
         data: {
           id: familyData.id,
           bitrixId: familyData.id, // Usando o ID da Supabase como fallback, pois é obrigatório
