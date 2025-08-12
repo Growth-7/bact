@@ -41,6 +41,16 @@ model Submission {
   userId          String
 }
 
+model FamilyCache {
+  id            String  @id
+  bitrixId      String? @unique
+  requerenteId  String?
+  familiaId     String?
+  familiaName   String
+  
+  @@map("family_cache")
+}
+
 enum SubmissionStatus {
   PENDING
   PROCESSING

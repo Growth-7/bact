@@ -5,12 +5,9 @@ interface AddFamilyModalProps {
   isOpen: boolean;
   onClose: () => void;
   onFamilyAdd: (familyId: string, familyName: string) => void;
-  supabaseUrl: string;
-  supabaseKey: string;
-  userId: string | null;
 }
 
-export default function AddFamilyModal({ isOpen, onClose, onFamilyAdd, supabaseUrl, supabaseKey, userId }: AddFamilyModalProps) {
+export default function AddFamilyModal({ isOpen, onClose, onFamilyAdd }: AddFamilyModalProps) {
   const [formData, setFormData] = useState({
     nome_familia: '',
     observacao: ''
@@ -34,34 +31,30 @@ export default function AddFamilyModal({ isOpen, onClose, onFamilyAdd, supabaseU
     setError(null);
 
     try {
-      const payload: any = { ...formData };
-      if (!payload.observacao) delete payload.observacao;
+      const payload = {
+        nome_familia: formData.nome_familia,
+        ...(formData.observacao && { observacao: formData.observacao }),
+      };
 
-      /*
-      if (userId) {
-        payload.italiano = userId;
-        payload.administrador = userId;
-      }
-      */
-
-      const response = await fetch(`${supabaseUrl}/functions/v1/addFamilia`, {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${apiUrl}/api/auth/family`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseKey}`
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
-        body: JSON.stringify({ data: [payload] }) 
+        body: JSON.stringify(payload)
       });
 
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Falha ao adicionar família.');
+        throw new Error(result.message || 'Falha ao adicionar família.');
       }
       
       const newFamily = result?.data?.[0];
       if (!newFamily?.id || !newFamily?.nome_familia) {
-        throw new Error('A API não retornou os dados da nova família.');
+        throw new Error('A API não retornou os dados da nova família corretamente.');
       }
 
       onFamilyAdd(newFamily.id, newFamily.nome_familia);

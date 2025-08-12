@@ -1,11 +1,9 @@
 import { type Request, type Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { DatabaseConnection } from '../config/DatabaseConnection.js';
+import { prisma } from '../config/DatabaseConnection.js';
+import { v4 as uuidv4, validate as isUUID } from 'uuid';
 import axios from 'axios';
-import { isUUID } from 'class-validator';
-
-const prisma = DatabaseConnection.getInstance();
 
 const getValidationApiHeaders = () => {
   const VALIDATION_API_KEY = process.env.VALIDATION_SUPABASE_ANON_KEY;
@@ -233,6 +231,82 @@ export class AuthController {
     } catch (error: any) {
       console.error('Erro ao adicionar requerente:', error.response?.data || error.message);
       return res.status(500).json({ success: false, message: error.response?.data?.error || 'Erro interno ao adicionar requerente.' });
+    }
+  }
+
+  async addFamily(req: Request, res: Response): Promise<Response | void> {
+    const { nome_familia, observacao } = req.body;
+
+    if (!nome_familia) {
+      return res.status(400).json({ success: false, message: 'O nome da família é obrigatório.' });
+    }
+
+    try {
+      const supabaseUrl = process.env.VALIDATION_SUPABASE_URL;
+      if (!supabaseUrl) {
+        throw new Error('VALIDATION_SUPABASE_URL não está configurada no servidor.');
+      }
+      // Corrige a URL base removendo o caminho da API REST se ele existir
+      const baseUrl = supabaseUrl.replace('/rest/v1', '');
+      const functionUrl = `${baseUrl}/functions/v1/addFamilia`;
+
+      const headers = getValidationApiHeaders();
+
+      const payload = {
+        nome_familia: nome_familia,
+        observacao: observacao || ''
+      };
+
+      const response = await axios.post(functionUrl, {
+        data: [payload]
+      }, { headers });
+      
+      // Se a chamada para a Supabase foi bem-sucedida, adicione ao cache local
+      if (response.status === 200 && response.data?.data?.[0]) {
+        this.addFamilyToCache(response.data.data[0]);
+      }
+
+      return res.status(response.status).json(response.data);
+
+    } catch (error: any) {
+      console.error('Erro detalhado ao adicionar família via Supabase:');
+      if (error.response) {
+        console.error('Data:', error.response.data);
+        console.error('Status:', error.response.status);
+        console.error('Headers:', error.response.headers);
+      } else if (error.request) {
+        console.error('Request:', error.request);
+      } else {
+        console.error('Error Message:', error.message);
+      }
+      console.error('Config:', error.config);
+
+      const statusCode = error.response?.status || 500;
+      const message = error.response?.data?.error || 'Erro interno ao contatar o serviço de famílias.';
+      return res.status(statusCode).json({ success: false, message });
+    }
+  }
+
+  private async addFamilyToCache(familyData: { id: string; nome_familia: string }): Promise<void> {
+    try {
+      console.log(`Adicionando ao cache a família: ${familyData.nome_familia} (ID: ${familyData.id})`);
+      
+      // DEBUG: Logar as chaves do objeto prisma para ver os modelos disponíveis
+      console.log('Modelos disponíveis no Prisma Client:', Object.keys(prisma));
+
+      await prisma.family_cache.create({
+        data: {
+          id: familyData.id,
+          bitrixId: familyData.id, // Usando o ID da Supabase como fallback, pois é obrigatório
+          familiaId: familyData.id, // O ID da família é o próprio ID do registro
+          familiaName: familyData.nome_familia,
+        }
+      });
+      console.log('Família adicionada ao cache com sucesso.');
+    } catch (cacheError: any) {
+      // Se a inserção no cache falhar, apenas logamos o erro mas não paramos o fluxo.
+      // O usuário ainda recebe a resposta de sucesso da criação principal.
+      console.error('Falha ao adicionar família ao cache:', cacheError.message);
     }
   }
 

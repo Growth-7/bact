@@ -269,9 +269,6 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onFamilyAdd={handleFamilyAdded}
-        supabaseUrl={supabaseUrl}
-        supabaseKey={supabaseKey}
-        userId={userId}
       />
     </Layout>
   );

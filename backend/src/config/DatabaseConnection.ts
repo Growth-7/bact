@@ -1,30 +1,28 @@
 import { PrismaClient } from '@prisma/client';
 
+// Este objeto global garante que não haverá múltiplas instâncias do PrismaClient em desenvolvimento com hot-reloading.
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
+
+export const prisma =
+  globalForPrisma.prisma ||
+  new PrismaClient({
+    log: ['query', 'info', 'warn', 'error'],
+  });
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+
 export class DatabaseConnection {
-  private static instance: PrismaClient | null = null;
-
-  private constructor() {}
-
   static getInstance(): PrismaClient {
-    if (this.instance === null) {
-      this.instance = new PrismaClient({
-        log: ['query', 'info', 'warn', 'error'],
-      });
-    }
-    return this.instance;
+    return prisma;
   }
 
   static async disconnect(): Promise<void> {
-    if (this.instance) {
-      await this.instance.$disconnect();
-      this.instance = null;
-    }
+    await prisma.$disconnect();
   }
 
   static async testConnection(): Promise<boolean> {
     try {
-      const client = this.getInstance();
-      await client.$queryRaw`SELECT 1`;
+      await prisma.$queryRaw`SELECT 1`;
       return true;
     } catch (error) {
       console.error('Erro na conexão com banco de dados:', error);

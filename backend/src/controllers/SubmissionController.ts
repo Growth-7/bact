@@ -1,10 +1,10 @@
 import { type Request, type Response } from 'express';
 import { google } from 'googleapis';
 import axios from 'axios';
-import { DatabaseConnection } from '../config/DatabaseConnection.js';
+import { prisma } from '../config/DatabaseConnection.js';
 import stream from 'stream';
 
-const prisma = DatabaseConnection.getInstance();
+// const prisma = DatabaseConnection.getInstance();
 
 // (As funções processPrivateKeyForAuth, driveCredentials, auth, drive, validateAndProcessFolderId, PARENT_FOLDER_ID, getOrCreateFolder, e bufferToBase64 permanecem as mesmas)
 
