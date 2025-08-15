@@ -46,8 +46,34 @@ export class GoogleDriveService {
 
     this.auth = new google.auth.GoogleAuth({
         credentials,
-        scopes: ['https://www.googleapis.com/auth/drive.file']
+        scopes: ['https://www.googleapis.com/auth/drive']
     });
+  }
+
+  async shareFolderWithUser(email: string): Promise<void> {
+    const drive = google.drive({ version: 'v3', auth: this.auth });
+
+    console.log(`[DEBUG] Tentando compartilhar a pasta com ID: "[${this.folderId}]"`);
+
+    try {
+      await drive.permissions.create({
+        fileId: this.folderId, // Usa o ID da pasta validado no construtor
+        supportsAllDrives: true,
+        requestBody: {
+          role: 'writer',
+          type: 'user',
+          emailAddress: email,
+        },
+        fields: 'id',
+      });
+      console.log(`Convite enviado para ${email} para a pasta ${this.folderId}`);
+    } catch (error) {
+      console.error(`Erro ao compartilhar a pasta ${this.folderId} com ${email}:`, error);
+      if (error instanceof Error) {
+        throw new Error(`Erro ao enviar convite do Google Drive: ${error.message}`);
+      }
+      throw new Error(`Erro desconhecido ao enviar convite do Google Drive: ${error}`);
+    }
   }
 
   async uploadFile(fileData: GoogleDriveFileData): Promise<GoogleDriveUploadResult> {
@@ -67,7 +93,8 @@ export class GoogleDriveService {
       const response = await drive.files.create({
         requestBody: fileMetadata,
         media: media,
-        fields: 'id,webViewLink'
+        fields: 'id,webViewLink',
+        supportsAllDrives: true
       });
 
       return this.createUploadResult(response);
@@ -240,6 +267,11 @@ export class GoogleDriveService {
     }
     if (processedId.startsWith("'") && processedId.endsWith("'")) {
       processedId = processedId.slice(1, -1);
+    }
+
+    // Remove um ponto final, que pode ser um erro de cópia
+    if (processedId.endsWith('.')) {
+      processedId = processedId.slice(0, -1);
     }
 
     // Verificar se não está duplicado (problema comum em variáveis de ambiente)

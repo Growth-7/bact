@@ -1,18 +1,24 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { FileText } from 'lucide-react';
-import UserProfile from './UserProfile';
+import { FileText, Shield } from 'lucide-react';
+import UserProfile from './SistemaPrincipal/UserProfile';
 import { getUserSummary } from '../services/user';
+import { User } from '../types';
+import NotificationButton from './common/NotificationButton';
+import NotificationModal from './common/NotificationModal';
 
 interface LayoutProps {
   children: React.ReactNode;
   title?: string;
   showGreeting?: boolean;
+  onNavigateToAdmin?: () => void;
 }
 
-export default function Layout({ children, title, showGreeting = false }: LayoutProps) {
+export default function Layout({ children, title, showGreeting = false, onNavigateToAdmin }: LayoutProps) {
   const [summary, setSummary] = useState<any | null>(null);
-  const [user, setUser] = useState<{ id: string; username: string } | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [now, setNow] = useState<Date>(new Date());
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [hasNotification, setHasNotification] = useState(true);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 60_000);
@@ -124,8 +130,11 @@ export default function Layout({ children, title, showGreeting = false }: Layout
       const payload = JSON.parse(atob(token.split('.')[1] || ''));
       const userId = payload?.id;
       const username = payload?.username || payload?.sub || 'Usuário';
+      const user_type = payload?.user_type || 'OPERATOR'; // Padrão para OPERATOR
+      const user_id_bitrix24 = payload?.user_id_bitrix24 || '';
+
       if (userId) {
-        setUser({ id: userId, username });
+        setUser({ id: userId, username, user_type, user_id_bitrix24 });
         getUserSummary(userId).then((s) => s && setSummary(s)).catch(() => {});
       }
     } catch {}
@@ -154,23 +163,35 @@ export default function Layout({ children, title, showGreeting = false }: Layout
                 <p className="text-xs text-slate-500">Base de Arquivos para Certidões e Tradução</p>
               </div>
             </div>
-            {user && (
-              <UserProfile
-                user={user}
-                stats={
-                  summary || {
-                    totalSubmissions: 0,
-                    todayCount: 0,
-                    currentStreak: 0,
-                    longestStreak: 0,
-                    dailyGoal: 336,
-                    weeklyData: [],
-                    totalUsers: 0,
-                    rank: 0,
+            <div className="flex items-center space-x-4">
+              {user?.user_type === 'ADMIN' && onNavigateToAdmin && (
+                <button
+                  onClick={onNavigateToAdmin}
+                  className="flex items-center gap-2 rounded-lg p-2 text-slate-600 font-medium transition-colors hover:bg-blue-50 hover:text-blue-600"
+                  title="Painel do Administrador"
+                >
+                  <Shield size={20} />
+                  <span>Painel Admin</span>
+                </button>
+              )}
+              {user && (
+                <UserProfile
+                  user={user}
+                  stats={
+                    summary || {
+                      totalSubmissions: 0,
+                      todayCount: 0,
+                      currentStreak: 0,
+                      longestStreak: 0,
+                      dailyGoal: 336,
+                      weeklyData: [],
+                      totalUsers: 0,
+                      rank: 0,
+                    }
                   }
-                }
-              />
-            )}
+                />
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -195,6 +216,15 @@ export default function Layout({ children, title, showGreeting = false }: Layout
         )}
         {children}
       </main>
+
+      <NotificationButton
+        onClick={() => {
+          setIsModalOpen(true);
+          setHasNotification(false);
+        }}
+        hasNotification={hasNotification}
+      />
+      <NotificationModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </div>
   );
 }

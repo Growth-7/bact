@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { User, Trophy, Target, TrendingUp, Flame, Medal, FileText, Clock, X, Users } from 'lucide-react';
-import { UserStats, RankingUser } from '../types';
-import { getUserSummary } from '../services/user';
+import { UserStats, RankingUser } from '../../types';
+import { getUserSummary } from '../../services/user';
 import confetti from 'canvas-confetti';
 
 interface UserProfileProps {

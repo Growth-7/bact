@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FileText, Eye, Download, Calendar, User, ArrowLeft, FolderOpen, Users, Building2, UserCheck, Heart, Skull, Baby } from 'lucide-react';
-import Layout from './Layout';
-import { DocumentSubmission, Family, DOCUMENT_TYPES, FAMILY_DOCUMENT_TYPES, DocumentTypeOption } from '../types';
+import Layout from '../Layout';
+import { DocumentSubmission, Family, DOCUMENT_TYPES, FAMILY_DOCUMENT_TYPES, DocumentTypeOption } from '../../types';
 
 interface DocumentsListScreenProps {
   family: Family;
@@ -270,8 +270,13 @@ export default function DocumentsListScreen({ family, documents, members = [], o
                   grouped.set(key, list);
                 }
 
-                const getIconForLabel = (label: string): JSX.Element => {
+                const getIconForLabel = (label: string, nature?: string): JSX.Element => {
                   const normalized = (label || '').toLowerCase();
+                  const natureNormalized = (nature || '').toLowerCase();
+
+                  if (natureNormalized === 'traduzido') return <FileText className="w-4 h-4 text-blue-600" title="Traduzido" />;
+                  if (natureNormalized === 'apostilado') return <FileText className="w-4 h-4 text-purple-600" title="Apostilado" />;
+                  
                   if (normalized.includes('nascimento')) return <Baby className="w-4 h-4 text-green-600" />;
                   if (normalized.includes('casamento')) return <Heart className="w-4 h-4 text-green-600" />;
                   if (normalized.includes('óbito') || normalized.includes('obito')) return <Skull className="w-4 h-4 text-green-600" />;
@@ -293,18 +298,14 @@ export default function DocumentsListScreen({ family, documents, members = [], o
                       const tb = b.uploadDate ? new Date(b.uploadDate).getTime() : 0;
                       return tb - ta;
                     });
-                  const recentByType: Array<{ label: string; url?: string }> = [];
-                  const seen = new Set<string>();
-                  for (const d of docsForMember) {
-                    const label = getDocumentTypeLabel(d.documentType || '');
-                    if (!label || seen.has(label)) continue;
-                    seen.add(label);
-                    const url = Array.isArray((d as any).fileUrls) && (d as any).fileUrls.length > 0 ? (d as any).fileUrls[0] : undefined;
-                    recentByType.push({ label, url });
-                    if (recentByType.length >= 2) break;
-                  }
-                  const hasDocs = recentByType.length > 0;
-                  return (
+
+                    const certificacoes = docsForMember.filter(d => d.documentNature === 'Scaneado');
+                    const traducoes = docsForMember.filter(d => d.documentNature === 'Traduzido');
+                    const apostilas = docsForMember.filter(d => d.documentNature === 'Apostilado');
+
+                    const hasDocs = docsForMember.length > 0;
+
+                    return (
                     <div key={m.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all duration-200 min-h-[11rem] flex flex-col overflow-hidden">
                       <div className="flex items-center space-x-4 mb-3">
                         <div className="bg-green-100 p-3 rounded-xl">
@@ -317,25 +318,9 @@ export default function DocumentsListScreen({ family, documents, members = [], o
                             {hasDocs ? (
                               <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
                                 <span>Enviado</span>
-                                {recentByType.map((t, idx) => {
-                                  const iconEl = (
-                                    <span key={`${t.label}-${idx}`} title={t.label} aria-label={t.label} className="inline-flex items-center">
-                                      {getIconForLabel(t.label)}
-                                    </span>
-                                  );
-                                  return t.url ? (
-                                    <a
-                                      key={`${t.label}-${idx}-a`}
-                                      href={t.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      title={`${t.label} (abrir)`}
-                                      className="hover:opacity-80"
-                                    >
-                                      {iconEl}
-                                    </a>
-                                  ) : iconEl;
-                                })}
+                                {certificacoes.length > 0 && <Baby className="w-4 h-4 text-green-600" title="Certidão" />}
+                                {traducoes.length > 0 && <FileText className="w-4 h-4 text-blue-600" title="Traduzido" />}
+                                {apostilas.length > 0 && <FileText className="w-4 h-4 text-purple-600" title="Apostilado" />}
                               </div>
                             ) : (
                               <span className="text-slate-400">Nenhum documento</span>

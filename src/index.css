@@ -5,7 +5,7 @@
 /* Transições e animações suaves para conforto visual */
 @layer utilities {
   .fade-in {
-    animation: fadeIn 220ms ease-out both;
+    animation: fadeIn 0.5s ease-out forwards;
   }
   .fade-in-slow {
     animation: fadeIn 380ms ease-out both;
@@ -14,7 +14,7 @@
     animation: fadeUp 260ms ease-out both;
   }
   .fade-down {
-    animation: fadeDown 260ms ease-out both;
+    animation: fadeAndMoveDown 0.6s ease-out forwards;
   }
   .blur-in {
     animation: blurIn 240ms ease-out both;
@@ -31,6 +31,56 @@
     transform: translateX(-100%);
     background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
     animation: shimmer 1.2s infinite;
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+    20%, 40%, 60%, 80% { transform: translateX(2px); }
+  }
+
+  .animate-shake {
+    animation: shake 0.8s cubic-bezier(.36,.07,.19,.97) both;
+  }
+
+  @keyframes pulse-glow {
+    0% {
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    70%, 100% {
+      box-shadow: 0 0 40px 20px rgba(239, 68, 68, 0);
+    }
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    50% { transform: translateY(-10px) rotate(180deg); }
+  }
+  
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(50px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateX(-30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 }
 

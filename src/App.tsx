@@ -1,29 +1,34 @@
 import { useEffect, useRef, useState } from 'react';
-import LoginScreen from './components/LoginScreen';
-import RegisterScreen from './components/RegisterScreen';
-import LocationSelectionScreen from './components/LocationSelectionScreen';
-import DocumentUploadScreen from './components/DocumentUploadScreen';
-import ReviewScreen from './components/ReviewScreen';
-import SuccessScreen from './components/SuccessScreen';
-import ForgotPasswordScreen from './components/ForgotPasswordScreen';
-import ResetPasswordScreen from './components/ResetPasswordScreen';
-import PasswordResetSuccessScreen from './components/PasswordResetSuccessScreen';
-import ProgressScreen from './components/ProgressScreen'; // Importar
-import FamilySearchScreen from './components/FamilySearchScreen';
-import DocumentsListScreen from './components/DocumentsListScreen';
+import WelcomeScreen from './components/SistemaPrincipal/WelcomeScreen'; // Importar WelcomeScreen
+import LoginScreen from './components/SistemaPrincipal/LoginScreen';
+import RegisterScreen from './components/SistemaPrincipal/RegisterScreen';
+import LocationSelectionScreen from './components/SistemaPrincipal/LocationSelectionScreen';
+import DocumentUploadScreen from './components/SistemaPrincipal/DocumentUploadScreen';
+import ReviewScreen from './components/SistemaPrincipal/ReviewScreen';
+import SuccessScreen from './components/SistemaPrincipal/SuccessScreen';
+import ForgotPasswordScreen from './components/SistemaPrincipal/ForgotPasswordScreen';
+import ResetPasswordScreen from './components/SistemaPrincipal/ResetPasswordScreen';
+import PasswordResetSuccessScreen from './components/SistemaPrincipal/PasswordResetSuccessScreen';
+import ProgressScreen from './components/SistemaPrincipal/ProgressScreen'; // Importar
+import FamilySearchScreen from './components/SistemaPrincipal/FamilySearchScreen';
+import DocumentsListScreen from './components/SistemaPrincipal/DocumentsListScreen';
+import ConsultationLoginScreen from './components/Visualizador/ConsultaLoginScreen'; // Importar
+import ConsultaDashboard from './components/Visualizador/ConsultaDashboard'; // Importar
+import AdminDashboard from './components/SistemaPrincipal/AdminDashboard'; // Importar AdminDashboard
 import { DocumentSubmission, User } from './types';
 import { jwtDecode } from 'jwt-decode';
+import IPBlockedScreen from './components/blockIp/IPblocked'; // Importar a nova tela
 
-type Screen = 'login' | 'register' | 'forgotPassword' | 'resetPassword' | 'passwordResetSuccess' | 'familySearch' | 'documentsList' | 'location' | 'upload' | 'review' | 'progress' | 'success';
+type Screen = 'welcome' | 'login' | 'register' | 'forgotPassword' | 'resetPassword' | 'passwordResetSuccess' | 'familySearch' | 'documentsList' | 'location' | 'upload' | 'review' | 'progress' | 'success' | 'consultaLogin' | 'consultaDashboard' | 'admin' | 'blocked';
 
 function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('login');
+  const [currentScreen, setCurrentScreen] = useState<Screen>('welcome'); // Estado inicial
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<'carrao' | 'alphaville' | null>(null);
   const [documentData, setDocumentData] = useState<DocumentSubmission | null>(null);
   const [submissionId, setSubmissionId] = useState<string | null>(null); // Novo estado
-  const [finalSubmissionData, setFinalSubmissionData] = useState<{ bitrixDealId?: string; fileUrls?: string[] } | null>(null);
+  const [finalSubmissionData, setFinalSubmissionData] = useState<{ bitrixDealId?: string; fileUrls?: string[]; statusDetails?: string } | null>(null);
   const [pendingResetData, setPendingResetData] = useState<{ username: string; birthDate: string } | null>(null);
 
   // Fluxo de documentos por família (declarado antes dos efeitos para evitar TDZ)
@@ -108,64 +113,30 @@ function App() {
 
   useEffect(() => {
     const storedToken = localStorage.getItem('authToken');
-    const persistedFamilyRaw = localStorage.getItem('selectedFamily');
-    const path = getPathname();
-    const familiaParam = getQueryParam('familia');
-    const submissionParam = getQueryParam('submission');
-    // const tipoParam = getQueryParam('tipo'); // removido por não uso
     if (storedToken) {
       handleLogin(storedToken);
-      if (path.toLowerCase().startsWith('/documentos') && familiaParam) {
-        // Deep link tem prioridade sobre persistência local
-        fetchFamilyAndEnter(familiaParam);
-      } else if (path.toLowerCase().startsWith('/upload') && familiaParam) {
-        // Deep link para upload
-        fetchFamilyAndEnter(familiaParam).then(() => {
-          setCurrentScreen('upload');
-        });
-      } else if (path.toLowerCase().startsWith('/progresso') && submissionParam) {
-        setSubmissionId(submissionParam);
-        setCurrentScreen('progress');
-      } else if (path.toLowerCase().startsWith('/sucesso')) {
-        setCurrentScreen('success');
-      } else if (persistedFamilyRaw) {
-        try {
-          const fam = JSON.parse(persistedFamilyRaw);
-          if (fam && fam.id) {
-            setSelectedFamily({ id: fam.id, name: fam.name || 'Família', members: fam.members || [], documentsCount: fam.documentsCount || 0 });
-            (async () => {
-              try {
-                const apiUrl = (import.meta as any).env?.VITE_API_URL || '';
-                const [membersRes, docsRes] = await Promise.all([
-                  fetch(`${apiUrl}/api/auth/family-members/${fam.id}`),
-                  fetch(`${apiUrl}/api/submissions/family/${fam.id}`),
-                ]);
-                const [membersData, docsData] = await Promise.all([membersRes.json(), docsRes.json()]);
-                if (membersRes.ok && membersData.success) {
-                  const membersDetailed = (membersData.members || []).map((m: any) => ({ id: m.id, name: m.name, customer_type: m.customer_type }));
-                  const memberNames: string[] = membersDetailed.map((m: any) => m.name).filter(Boolean);
-                  setFamilyMembers(membersDetailed);
-                  setSelectedFamily(prev => prev ? { ...prev, name: membersData.familyName || prev.name, members: memberNames } : prev);
-                }
-                setFamilyDocuments(docsRes.ok && docsData.success ? (docsData.data || []) : []);
-              } catch {}
-              setCurrentScreen('documentsList');
-            })();
-          }
-        } catch {}
+    } else {
+      const path = getPathname().toLowerCase();
+      if (path.startsWith('/ip-bloqueado')) {
+        setCurrentScreen('blocked');
+      } else {
+        // Se não houver token, direciona para a tela de boas-vindas
+        setCurrentScreen('welcome');
       }
     }
-    // Listener do botão voltar/avançar do navegador
+    
     const onPop = () => {
-      const p = getPathname();
-      const fam = getQueryParam('familia');
-      if (p.toLowerCase().startsWith('/documentos') && fam) {
-        fetchFamilyAndEnter(fam);
-      } else {
-        setSelectedFamily(null);
-        setFamilyDocuments([]);
-        setFamilyMembers([]);
+      // Lógica para lidar com o botão voltar do navegador
+      // (Pode ser ajustada conforme a necessidade)
+      const path = getPathname().toLowerCase();
+      if (path.startsWith('/admin')) {
+        setCurrentScreen('admin');
+      } else if (path.startsWith('/familias')) {
         setCurrentScreen('familySearch');
+      } else if (path.startsWith('/consulta')) {
+        setCurrentScreen('consultaDashboard');
+      } else {
+        setCurrentScreen('welcome');
       }
     };
     window.addEventListener('popstate', onPop);
@@ -188,12 +159,24 @@ function App() {
       setUser(decodedUser);
       setToken(tkn);
       localStorage.setItem('authToken', tkn);
-      setCurrentScreen('familySearch');
-      const p = getPathname().toLowerCase();
-      const hasDeepLink = p.startsWith('/documentos') || p.startsWith('/upload') || p.startsWith('/progresso') || p.startsWith('/sucesso');
-      if (!hasDeepLink) {
-        replaceUrl('/familias');
+
+      // Redirecionamento baseado no user_type
+      switch (decodedUser.user_type) {
+        case 'ADMIN':
+          setCurrentScreen('admin');
+          replaceUrl('/admin');
+          break;
+        case 'VIEWER':
+          setCurrentScreen('consultaDashboard');
+          replaceUrl('/consulta');
+          break;
+        case 'OPERATOR':
+        default:
+          setCurrentScreen('familySearch');
+          replaceUrl('/familias');
+          break;
       }
+
     } catch (error) {
       console.error("Failed to decode token:", error);
       handleLogout();
@@ -211,7 +194,7 @@ function App() {
     pushUrl(`/progresso?submission=${encodeURIComponent(result.submissionId)}`);
   };
 
-  const handleCompletion = (data: { bitrixDealId?: string; fileUrls?: string[] }) => {
+  const handleCompletion = (data: { bitrixDealId?: string; fileUrls?: string[], statusDetails?: string }) => {
     setFinalSubmissionData(data);
     // Após concluir um envio, permanece no contexto da família: mostrar success e permitir voltar para a lista
     setCurrentScreen('success');
@@ -325,14 +308,42 @@ function App() {
     setUser(null);
     setToken(null);
     localStorage.removeItem('authToken');
-    setCurrentScreen('login');
+    setCurrentScreen('welcome'); // Redireciona para welcome ao invés de login
+    replaceUrl('/');
+  };
+
+  const handleNavigateToAdmin = () => {
+    setCurrentScreen('admin');
+    replaceUrl('/admin');
   };
 
   switch (currentScreen) {
+    case 'welcome':
+      return <WelcomeScreen onNavigate={(screen) => setCurrentScreen(screen)} />;
     case 'login':
-      return <LoginScreen onLogin={handleLogin} onSwitchToRegister={() => setCurrentScreen('register')} onSwitchToForgotPassword={() => setCurrentScreen('forgotPassword')} />;
+      return <LoginScreen 
+        onLogin={handleLogin} 
+        onSwitchToRegister={() => setCurrentScreen('register')} 
+        onSwitchToForgotPassword={() => setCurrentScreen('forgotPassword')}
+        onBack={() => setCurrentScreen('welcome')} // Adicionar esta linha
+      />;
     case 'register':
       return <RegisterScreen onRegisterSuccess={() => setCurrentScreen('login')} onSwitchToLogin={() => setCurrentScreen('login')} />;
+    case 'admin':
+      return <AdminDashboard onNavigateToMain={handleCompleteFamily} onLogout={handleLogout} />;
+    case 'consultaLogin':
+      return <ConsultationLoginScreen
+        onLogin={(username) => {
+          // TODO: Lógica de login para consulta
+          console.log('Login de consulta com:', username);
+          setCurrentScreen('consultaDashboard'); // Navega para o dashboard
+        }}
+        onSwitchToRegister={() => setCurrentScreen('register')}
+        onSwitchToForgotPassword={() => setCurrentScreen('forgotPassword')}
+        onBack={() => setCurrentScreen('welcome')} // Adicionar esta linha
+      />;
+    case 'consultaDashboard':
+      return <ConsultaDashboard />;
     case 'forgotPassword':
       return (
         <ForgotPasswordScreen
@@ -363,6 +374,7 @@ function App() {
           <FamilySearchScreen
           onFamilySelect={handleFamilySelect}
           onBack={() => setCurrentScreen('login')}
+          onNavigateToAdmin={handleNavigateToAdmin} // Adicionar aqui
           />
         </div>
       );
@@ -385,7 +397,7 @@ function App() {
       }
       break;
     case 'location':
-      return <LocationSelectionScreen onNext={(loc) => { setSelectedLocation(loc); setCurrentScreen('upload'); }} onBack={handleLogout} />;
+      return <LocationSelectionScreen onNext={(loc) => { setSelectedLocation(loc); setCurrentScreen('upload'); }} onBack={handleLogout} onNavigateToAdmin={handleNavigateToAdmin} />;
     case 'upload':
       return (
         <div className="fade-up">
@@ -409,7 +421,11 @@ function App() {
       }
       break;
     case 'success':
-      return <div className="fade-down"><SuccessScreen onReset={handleReset} bitrixDealId={finalSubmissionData?.bitrixDealId || null} /></div>;
+      return <div className="fade-down"><SuccessScreen onReset={handleReset} bitrixDealId={finalSubmissionData?.bitrixDealId || null} statusDetails={finalSubmissionData?.statusDetails || null} /></div>;
+    case 'blocked': {
+      const blockedIP = getQueryParam('ip') || undefined;
+      return <IPBlockedScreen blockedIP={blockedIP} />;
+    }
   }
 
   return (

@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Upload, ArrowRight, ArrowLeft, User, Users, X, Paperclip, Loader2 } from 'lucide-react';
+import { Upload, File, X, Loader2, ArrowRight, User, Users, Paperclip, ArrowLeft } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
-import Layout from './Layout';
-import { DocumentSubmission, SubmissionType, LocationType, REQUERENTE_DOCUMENT_TYPES, FAMILIA_DOCUMENT_TYPES } from '../types';
+import Layout from '../Layout';
+import { DocumentSubmission, SubmissionType, LocationType, REQUERENTE_DOCUMENT_TYPES, FAMILIA_DOCUMENT_TYPES } from '../../types';
 import axios from 'axios';
 
 interface FamilyMember {
@@ -31,7 +31,9 @@ export default function DocumentUploadScreen({ location, onNext, onBack, initial
     idRequerente: initialData?.idRequerente || '',
     nomeFamilia: initialData?.nomeFamilia || '',
     idFamilia: initialData?.idFamilia || '',
+    documentNature: initialData?.documentNature || 'Scaneado',
     documentType: initialData?.documentType || REQUERENTE_DOCUMENT_TYPES[0],
+    documentoVinculado: initialData?.documentoVinculado || '',
     files: initialData?.files || [],
   });
   const isRequesterLocked = Boolean(initialData?.idRequerente);
@@ -78,7 +80,6 @@ export default function DocumentUploadScreen({ location, onNext, onBack, initial
             setFormData(prev => ({ 
               ...prev, 
               nomeFamilia: data.familyName || prev.nomeFamilia,
-              // Só define o primeiro membro por padrão se não houver requerente pré-selecionado (fluxo bloqueado)
               ...(isRequesterLocked ? {} : { 
                 idRequerente: prev.idRequerente || data.members[0].id,
                 nomeRequerente: prev.nomeRequerente || data.members[0].name,
@@ -135,11 +136,13 @@ export default function DocumentUploadScreen({ location, onNext, onBack, initial
         if (submissionType === 'requerente' && isCreatingRequerente) {
             console.log('Criando novo requerente...');
             const apiUrl = import.meta.env.VITE_API_URL || '';
-            const response = await axios.post(`${apiUrl}/api/auth/requerente`, {
+            const payload = {
                 familyName: formData.nomeFamilia,
                 idFamilia: formData.idFamilia,
                 requerenteName: novoRequerenteNome
-            });
+            };
+            console.log('Payload para criar requerente:', payload); // Log para depuração
+            const response = await axios.post(`${apiUrl}/api/auth/requerente`, payload);
             
             if (response.data && response.data.success && response.data.idRequerente) {
                 submissionData.idRequerente = response.data.idRequerente;
@@ -157,7 +160,8 @@ export default function DocumentUploadScreen({ location, onNext, onBack, initial
   };
   
   const documentTypes = submissionType === 'requerente' ? REQUERENTE_DOCUMENT_TYPES : FAMILIA_DOCUMENT_TYPES;
-  
+  const certificacoes = existingDocuments.filter(d => d.documentNature === 'Scaneado');
+
   useEffect(() => {
     const type = formData.documentType;
     if (!type) { setHasDuplicate(false); setConfirmDuplicate(false); return; }
@@ -265,11 +269,39 @@ export default function DocumentUploadScreen({ location, onNext, onBack, initial
           </div>
           
           <div>
+            <label htmlFor="documentNature" className="block text-sm font-medium mb-2">Natureza do Documento</label>
+            <select id="documentNature" value={formData.documentNature} onChange={(e) => handleInputChange('documentNature', e.target.value)} className="w-full p-3 border rounded-lg bg-white">
+              <option value="Scaneado">Scaneado</option>
+              <option value="Traduzido">Traduzido</option>
+              <option value="Apostilado">Apostilado</option>
+            </select>
+          </div>
+
+          <div>
             <label htmlFor="documentType" className="block text-sm font-medium mb-2">Tipo de Documento</label>
             <select id="documentType" value={formData.documentType} onChange={(e) => handleInputChange('documentType', e.target.value)} className="w-full p-3 border rounded-lg bg-white">
               {documentTypes.map(type => <option key={type} value={type}>{type}</option>)}
             </select>
           </div>
+
+          {(formData.documentNature === 'Traduzido' || formData.documentNature === 'Apostilado') && (
+            <div>
+              <label htmlFor="documentoVinculado" className="block text-sm font-medium mb-2">Vincular a qual documento?</label>
+              <select 
+                id="documentoVinculado" 
+                value={formData.documentoVinculado} 
+                onChange={(e) => handleInputChange('documentoVinculado', e.target.value)} 
+                className="w-full p-3 border rounded-lg bg-white"
+              >
+                <option value="">Selecione um documento</option>
+                {certificacoes.map(doc => (
+                  <option key={doc.id} value={doc.id}>
+                    {doc.documentType} de {doc.nomeRequerente || doc.nomeFamilia}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium mb-2">Upload de Documentos (PDF) *</label>

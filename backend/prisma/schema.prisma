@@ -12,10 +12,14 @@ model User {
   id               String       @id @default(cuid())
   username         String       @unique
   password         String
+  email            String?      @unique
   user_id_bitrix24 String       @unique
   birth_date       DateTime?
   submissions      Submission[]
   createdAt        DateTime     @default(now())
+
+  user_type UserType @map("type_user") @default(OPERATOR)
+  status    UserStatus @map("UserStatus") @default(PENDING_APPROVAL)
 }
 
 model Submission {
@@ -28,6 +32,8 @@ model Submission {
   idFamilia       String
   nomeRequerente  String?
   idRequerente    String?
+  documentNature  String?
+  documentoVinculado String?
   
   fileUrls        String[]
   bitrixDealId    String?
@@ -58,5 +64,30 @@ enum SubmissionStatus {
   CREATING_DEAL
   COMPLETED
   FAILED
+}
+
+enum UserType {
+  ADMIN
+  VIEWER
+  OPERATOR
+
+  @@map("type_user")
+}
+
+enum UserStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  REJECTED
+  INACTIVE
+
+  @@map("UserStatus")
+}
+
+model BlockedIp {
+  id        String   @id @default(cuid())
+  ipAddress String
+  createdAt DateTime @default(now())
+
+  @@map("blocked_ips")
 }
 

@@ -4,6 +4,10 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '../config/DatabaseConnection.js';
 import { v4 as uuidv4, validate as isUUID } from 'uuid';
 import axios from 'axios';
+import validator from 'validator';
+import { GoogleDriveService } from '../services/GoogleDriveService.js';
+
+const { isEmail } = validator;
 
 const getValidationApiHeaders = () => {
   const VALIDATION_API_KEY = process.env.VALIDATION_SUPABASE_ANON_KEY;
@@ -31,26 +35,69 @@ const getFamilyCacheApiHeaders = () => {
   };
 };
 
+interface FamilyCacheRecord {
+  id: string;
+  bitrixId?: string;
+  requerenteId?: string;
+  familiaId?: string;
+  familiaName?: string;
+  // Para o fallback snake_case
+  bitrix_id?: string;
+  requerente_id?: string;
+  familia_id?: string;
+  familia_name?: string;
+}
+
 export class AuthController {
   async register(req: Request, res: Response): Promise<Response | void> {
-    const { username, password, user_id_bitrix24, birth_date } = req.body;
-    if (!username || !password || !user_id_bitrix24 || !birth_date) {
+    const { username, password, email, user_id_bitrix24, birth_date, user_type = 'OPERATOR' } = req.body;
+
+    if (!username || !password || !email || !user_id_bitrix24 || !birth_date) {
       return res.status(400).json({ success: false, message: 'Todos os campos são obrigatórios.' });
     }
+
+    if (!isEmail(email)) {
+        return res.status(400).json({ success: false, message: 'O e-mail fornecido é inválido.' });
+    }
+
     try {
-      const existingUser = await prisma.user.findFirst({ where: { OR: [{ username }, { user_id_bitrix24 }] } });
+      const existingUser = await prisma.user.findFirst({ where: { OR: [{ username }, { email }, { user_id_bitrix24 }] } });
       if (existingUser) {
-        return res.status(409).json({ success: false, message: 'Usuário ou ID Bitrix24 já cadastrado.' });
+        let message = 'Usuário já cadastrado.';
+        if (existingUser.username === username) {
+            message = 'Este nome de usuário já está em uso.';
+        } else if (existingUser.email === email) {
+            message = 'Este e-mail já está cadastrado.';
+        } else if (existingUser.user_id_bitrix24 === user_id_bitrix24) {
+            message = 'Este ID do Bitrix24 já está em uso.';
+        }
+        return res.status(409).json({ success: false, message });
       }
+
       const hashedPassword = await bcrypt.hash(password, 10);
-      const user = await prisma.user.create({ 
-        data: { 
-          username, 
-          password: hashedPassword, 
+
+      const status = user_type === 'ADMIN' || user_type === 'VIEWER' ? 'ACTIVE' : 'PENDING_APPROVAL';
+
+      const user = await prisma.user.create({
+        data: {
+          username,
+          password: hashedPassword,
+          email,
           user_id_bitrix24,
-          birth_date: new Date(birth_date) 
-        } 
+          birth_date: new Date(birth_date),
+          user_type,
+          status,
+        },
       });
+
+      if (user.status === 'PENDING_APPROVAL') {
+        return res.status(201).json({
+          success: true,
+          message: 'Cadastro realizado com sucesso! Sua conta está pendente de aprovação por um administrador.',
+          user: { id: user.id, username: user.username }
+        });
+      }
+
       return res.status(201).json({ success: true, user: { id: user.id, username: user.username } });
     } catch (error) {
       console.error('Erro no cadastro:', error);
@@ -68,19 +115,45 @@ export class AuthController {
       if (!user || !user.password) {
         return res.status(404).json({ success: false, message: 'Usuário não encontrado ou senha não configurada.' });
       }
+
+      if (user.status === 'PENDING_APPROVAL') {
+        return res.status(403).json({ success: false, message: 'Sua conta está pendente de aprovação.' });
+      }
+
+      if (user.status === 'REJECTED') {
+        return res.status(403).json({ success: false, message: 'O acesso da sua conta foi rejeitado.' });
+      }
+
+      if (user.status === 'INACTIVE') {
+        return res.status(403).json({ success: false, message: 'Esta conta está inativa.' });
+      }
+
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
         return res.status(401).json({ success: false, message: 'Senha incorreta.' });
       }
 
+      // Expiração diária: em produção, expira à meia-noite; em dev, manter 1h
+      const computeDailyExpirySeconds = (): number => {
+        const now = new Date();
+        const midnight = new Date(now);
+        midnight.setHours(24, 0, 0, 0); // próximo dia às 00:00:00
+        const diffMs = midnight.getTime() - now.getTime();
+        const seconds = Math.max(1, Math.floor(diffMs / 1000));
+        return seconds;
+      };
+
+      const expiresIn = process.env.NODE_ENV === 'production' ? computeDailyExpirySeconds() : 3600;
+
       const token = jwt.sign(
-        { 
-          id: user.id, 
+        {
+          id: user.id,
           username: user.username,
-          user_id_bitrix24: user.user_id_bitrix24 
+          user_id_bitrix24: user.user_id_bitrix24,
+          user_type: user.user_type,
         },
         process.env.JWT_SECRET as string,
-        { expiresIn: '1h' }
+        { expiresIn }
       );
 
       return res.status(200).json({ success: true, token });
@@ -133,7 +206,7 @@ export class AuthController {
       }
 
       const familyName = data[0]?.family_name || '';
-      
+
       const members = data.map((member: any) => ({
         id: member.customer_id,
         name: member.full_name || member.slug || 'Nome não encontrado',
@@ -156,7 +229,7 @@ export class AuthController {
       const like = `%${q}%`;
       // 1) Tenta camelCase com identificadores entre aspas (base atual)
       try {
-        const rows = await prisma.$queryRaw<any[]>`
+        const rows = await prisma.$queryRaw<FamilyCacheRecord[]>`
           SELECT id, "bitrixId", "requerenteId", "familiaId", "familiaName"
           FROM "family_cache"
           WHERE "familiaName" ILIKE ${like}
@@ -165,7 +238,7 @@ export class AuthController {
              OR "requerenteId" ILIKE ${like}
           LIMIT 50
         `;
-        const families = rows.map((r) => ({
+        const families = rows.map((r: FamilyCacheRecord) => ({
           id: r.id,
           bitrixId: r.bitrixId ?? null,
           requerenteId: r.requerenteId ?? null,
@@ -175,7 +248,7 @@ export class AuthController {
         return res.status(200).json({ success: true, families });
       } catch (camelErr) {
         // 2) Fallback: snake_case (ambientes que usem underscores)
-        const rows = await prisma.$queryRaw<any[]>`
+        const rows = await prisma.$queryRaw<FamilyCacheRecord[]>`
           SELECT id, bitrix_id, requerente_id, familia_id, familia_name
           FROM "family_cache"
           WHERE familia_name ILIKE ${like}
@@ -184,7 +257,7 @@ export class AuthController {
              OR requerente_id ILIKE ${like}
           LIMIT 50
         `;
-        const families = rows.map((r) => ({
+        const families = rows.map((r: FamilyCacheRecord) => ({
           id: r.id,
           bitrixId: r.bitrix_id ?? null,
           requerenteId: r.requerente_id ?? null,
@@ -205,7 +278,7 @@ export class AuthController {
     if (!familyName || !idFamilia || !requerenteName) {
       return res.status(400).json({ success: false, message: 'Dados insuficientes para adicionar requerente.' });
     }
-    
+
     if (!isUUID(idFamilia)) {
       return res.status(400).json({ success: false, message: 'Formato de ID da Família inválido.' });
     }
@@ -260,7 +333,7 @@ export class AuthController {
       const response = await axios.post(functionUrl, {
         data: [payload]
       }, { headers });
-      
+
       // Se a chamada para a Supabase foi bem-sucedida, adicione ao cache local
       if (response.status === 200 && response.data?.data?.[0]) {
         this.addFamilyToCache(response.data.data[0]);
@@ -287,10 +360,91 @@ export class AuthController {
     }
   }
 
+  async getPendingUsers(_req: Request, res: Response): Promise<Response | void> {
+    try {
+      const users = await prisma.user.findMany({
+        where: { status: 'PENDING_APPROVAL' },
+        select: {
+          id: true,
+          username: true,
+          createdAt: true,
+        },
+      });
+      return res.status(200).json({ success: true, users });
+    } catch (error) {
+      console.error('Erro ao buscar usuários pendentes:', error);
+      return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+  }
+
+  async getAllUsers(_req: Request, res: Response): Promise<Response | void> {
+    try {
+      const users = await prisma.user.findMany({
+        select: {
+          id: true,
+          username: true,
+          user_type: true,
+          status: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+      return res.status(200).json({ success: true, users });
+    } catch (error) {
+      console.error('Erro ao buscar todos os usuários:', error);
+      return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+  }
+
+  async updateUserStatus(req: Request, res: Response): Promise<Response | void> {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status || !['ACTIVE', 'REJECTED', 'INACTIVE'].includes(status)) {
+      return res.status(400).json({ success: false, message: "Status inválido. Use 'ACTIVE', 'REJECTED' ou 'INACTIVE'." });
+    }
+
+    // Opcional: Impedir que o admin se auto-desative/rejeite.
+    // Precisaria do ID do usuário logado vindo do token via middleware.
+    // Por simplicidade, essa lógica será tratada no frontend.
+
+    try {
+      const user = await prisma.user.update({
+        where: { id },
+        data: { status },
+      });
+
+      // Se o usuário for ativado, tente enviar o convite.
+      if (status === 'ACTIVE') {
+        if (user.email) {
+          try {
+            const googleDriveService = new GoogleDriveService();
+            await googleDriveService.shareFolderWithUser(user.email);
+          } catch (driveError) {
+            console.error(`Falha ao enviar convite do Google Drive para ${user.email} após aprovação:`, driveError);
+            return res.status(200).json({ 
+              success: true, 
+              message: `Status do usuário ${user.username} atualizado, mas falha ao enviar convite do Drive.` 
+            });
+          }
+        } else if (!user.email) {
+          console.warn(`Usuário ${user.username} (ID: ${user.id}) aprovado sem um e-mail cadastrado. Convite do Drive não enviado.`);
+        }
+      }
+
+      return res.status(200).json({ success: true, message: `Status do usuário ${user.username} atualizado para ${status}.` });
+    } catch (error) {
+      console.error('Erro ao atualizar status do usuário:', error);
+      return res.status(500).json({ success: false, message: 'Erro interno do servidor ou usuário não encontrado.' });
+    }
+  }
+
   private async addFamilyToCache(familyData: { id: string; nome_familia: string }): Promise<void> {
     try {
       console.log(`Adicionando ao cache a família: ${familyData.nome_familia} (ID: ${familyData.id})`);
-      
+
       // DEBUG: Logar as chaves do objeto prisma para ver os modelos disponíveis
       console.log('Modelos disponíveis no Prisma Client:', Object.keys(prisma));
 

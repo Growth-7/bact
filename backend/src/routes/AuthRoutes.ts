@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { AuthController } from '../controllers/AuthController.js';
+import { authenticate, isAdmin } from '../middleware/AuthMiddleware.js';
 
 const authRoutes = Router();
 const authController = new AuthController();
@@ -13,5 +14,11 @@ authRoutes.post('/requerente', (req, res) => authController.addRequerente(req, r
 authRoutes.post('/family', (req, res) => authController.addFamily(req, res));
 authRoutes.post('/forgot-password', (req, res) => authController.forgotPassword(req, res));
 authRoutes.post('/reset-password', (req, res) => authController.resetPassword(req, res));
+
+// Rotas de administração de usuários
+authRoutes.get('/users/pending', authenticate, isAdmin, (req, res) => authController.getPendingUsers(req, res));
+authRoutes.get('/users', authenticate, isAdmin, (req, res) => authController.getAllUsers(req, res));
+authRoutes.put('/users/:id/status', authenticate, isAdmin, (req, res) => authController.updateUserStatus(req, res));
+
 
 export default authRoutes;

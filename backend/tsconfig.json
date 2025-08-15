@@ -1,20 +1,15 @@
 {
   "compilerOptions": {
-    "outDir": "dist",
-    "module": "nodenext",
-    "target": "es2020",
-    "sourceMap": true,
-    "moduleResolution": "nodenext",
-    "strict": true,
+    "target": "es2016",
+    "module": "esnext",
+    "moduleResolution": "node",
     "esModuleInterop": true,
-    "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "verbatimModuleSyntax": true,
-    "isolatedModules": true,
-    "types": ["node", "validator"],
-    "typeRoots": ["./node_modules/@types"]
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "./dist",
+    "rootDir": "./src"
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules"]
 }

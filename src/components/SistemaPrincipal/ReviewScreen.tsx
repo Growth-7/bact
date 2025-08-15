@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Send, ArrowLeft, Eye, Paperclip, Loader2, User, Users, MapPin, FileText, X } from 'lucide-react';
-import Layout from './Layout';
-import { DocumentSubmission, User as UserType } from '../types';
+import Layout from '../Layout';
+import { DocumentSubmission, User as UserType } from '../../types';
 import axios from 'axios';
 
 interface ReviewScreenProps {

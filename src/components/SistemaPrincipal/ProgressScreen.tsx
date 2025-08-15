@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Loader, AlertTriangle, FileUp, Building, Send, PartyPopper } from 'lucide-react';
-import Layout from './Layout';
+import Layout from '../Layout';
 import axios from 'axios';
 
 interface ProgressScreenProps {

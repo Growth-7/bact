@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { MapPin, Building2, ArrowRight } from 'lucide-react';
-import Layout from './Layout';
+import Layout from '../Layout';
 
 interface LocationSelectionScreenProps {
   onNext: (location: 'carrao' | 'alphaville') => void;
   onBack: () => void;
+  onNavigateToAdmin?: () => void;
 }
 
 export default function LocationSelectionScreen({ onNext, onBack }: LocationSelectionScreenProps) {

@@ -1,17 +1,19 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
+import { ipWhitelistAuth } from './middleware/IpWhitelistMiddleware.js';
 import multer from 'multer';
 import authRoutes from './routes/AuthRoutes.js';
 import submissionRoutes from './routes/SubmissionRoutes.js'; // Importar as novas rotas
+import dashboardRoutes from './routes/DashboardRoutes.js';
+import ipFilterRoutes from './routes/IpFilterRoutes.js'; // Importar rotas de filtro de IP
 import { FileUploadMiddleware } from './middleware/FileUploadMiddleware.js';
 
-dotenv.config();
-
 const app = express();
+app.set('trust proxy', true);
 const port = process.env.PORT || 3333;
 
 // Middleware
+app.use(ipWhitelistAuth);
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -27,6 +29,8 @@ app.get('/', (req: Request, res: Response) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/submissions', submissionRoutes); // Usar as rotas de submissão
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/security', ipFilterRoutes); // Usar rotas de filtro de IP
 
 // Error handling middleware
 app.use((error: any, req: Request, res: Response, next: NextFunction) => {

@@ -2,6 +2,7 @@ export interface User {
   id: string;
   username: string;
   user_id_bitrix24: string;
+  user_type: 'ADMIN' | 'OPERATOR' | 'VIEWER';
 }
 
 export type SubmissionType = 'requerente' | 'familia';
@@ -58,6 +59,8 @@ export interface DocumentSubmission {
   idFamilia?: string;
   
   documentType?: DocumentType;
+  documentNature?: string;
+  documentoVinculado?: string;
   files: File[];
 
   // Campos auxiliares (para telas de listagem/preview)

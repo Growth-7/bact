@@ -1,16 +1,23 @@
 import React from 'react';
 import { CheckCircle, ArrowLeft, ExternalLink } from 'lucide-react';
-import Layout from './Layout';
+import Layout from '../Layout';
 
 interface SuccessScreenProps {
   onReset: () => void;
   bitrixDealId: string | null;
+  statusDetails: string | null;
 }
 
-export default function SuccessScreen({ onReset, bitrixDealId }: SuccessScreenProps) {
+export default function SuccessScreen({ onReset, bitrixDealId, statusDetails }: SuccessScreenProps) {
   const bitrixCardUrl = bitrixDealId
     ? `https://eunaeuropacidadania.bitrix24.com.br/crm/type/1132/details/${bitrixDealId}/`
     : '#';
+
+  const wasUpdated = statusDetails?.includes('atualizado');
+  const message = wasUpdated
+    ? 'Seu documento foi recebido e o card existente no Bitrix24 foi atualizado.'
+    : 'Seu documento foi recebido e um novo card foi criado no Bitrix24.';
+  const buttonText = wasUpdated ? 'Ver Card Atualizado no Bitrix24' : 'Ver Card Criado no Bitrix24';
 
   return (
     <Layout>
@@ -21,7 +28,7 @@ export default function SuccessScreen({ onReset, bitrixDealId }: SuccessScreenPr
               <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
               <h3 className="text-2xl font-light text-slate-900 mb-2">Envio Concluído!</h3>
               <p className="text-slate-600">
-                Seu documento foi recebido e o card foi criado no Bitrix24.
+                {message}
               </p>
             </div>
 
@@ -35,7 +42,7 @@ export default function SuccessScreen({ onReset, bitrixDealId }: SuccessScreenPr
                 >
                   <div className="flex items-center justify-center space-x-2">
                     <ExternalLink className="w-5 h-5" />
-                    <span>Ver Card Criado no Bitrix24</span>
+                    <span>{buttonText}</span>
                   </div>
                 </a>
               </div>

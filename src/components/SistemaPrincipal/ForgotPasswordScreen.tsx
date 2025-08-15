@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User as UserIcon, Calendar, ArrowRight, Lock } from 'lucide-react';
-import Layout from './Layout';
+import Layout from '../Layout';
 
 interface ForgotPasswordScreenProps {
   onSwitchToLogin: () => void;

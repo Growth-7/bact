@@ -1,19 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Loader2, Save } from 'lucide-react';
 
 interface AddFamilyModalProps {
   isOpen: boolean;
   onClose: () => void;
   onFamilyAdd: (familyId: string, familyName: string) => void;
+  initialFamilyId?: string;
 }
 
-export default function AddFamilyModal({ isOpen, onClose, onFamilyAdd }: AddFamilyModalProps) {
+export default function AddFamilyModal({ isOpen, onClose, onFamilyAdd, initialFamilyId }: AddFamilyModalProps) {
   const [formData, setFormData] = useState({
+    id_familia: initialFamilyId || '',
     nome_familia: '',
     observacao: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialFamilyId) {
+      setFormData(prev => ({ ...prev, id_familia: initialFamilyId }));
+    }
+  }, [initialFamilyId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -26,12 +34,17 @@ export default function AddFamilyModal({ isOpen, onClose, onFamilyAdd }: AddFami
       setError('O nome da família é obrigatório.');
       return;
     }
+    if (initialFamilyId && !formData.id_familia.trim()) {
+      setError('O ID da família é obrigatório.');
+      return;
+    }
 
     setIsSubmitting(true);
     setError(null);
 
     try {
       const payload = {
+        id_familia: formData.id_familia,
         nome_familia: formData.nome_familia,
         ...(formData.observacao && { observacao: formData.observacao }),
       };
@@ -58,7 +71,7 @@ export default function AddFamilyModal({ isOpen, onClose, onFamilyAdd }: AddFami
       }
 
       onFamilyAdd(newFamily.id, newFamily.nome_familia);
-      setFormData({ nome_familia: '', observacao: '' });
+      setFormData({ id_familia: '', nome_familia: '', observacao: '' });
       onClose();
 
     } catch (err: any) {
@@ -81,6 +94,22 @@ export default function AddFamilyModal({ isOpen, onClose, onFamilyAdd }: AddFami
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {initialFamilyId && (
+            <div>
+              <label htmlFor="id_familia" className="block text-slate-700 font-semibold mb-2">
+                ID da Família
+              </label>
+              <input
+                id="id_familia"
+                name="id_familia"
+                type="text"
+                value={formData.id_familia}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-slate-300 rounded-xl bg-slate-100 cursor-not-allowed"
+                readOnly
+              />
+            </div>
+          )}
           <div>
             <label htmlFor="nome_familia" className="block text-slate-700 font-semibold mb-2">
               Nome da Família <span className="text-red-500">*</span>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { User, Lock, ArrowRight, Hash, Calendar } from 'lucide-react';
-import Layout from './Layout';
+import { ArrowLeft, UserPlus, User, Lock, Hash, Calendar, ArrowRight, Mail } from 'lucide-react';
+import Layout from '../Layout';
 
 interface RegisterScreenProps {
   onRegisterSuccess: () => void;
@@ -10,6 +10,7 @@ interface RegisterScreenProps {
 export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }: RegisterScreenProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
   const [userIdBitrix24, setUserIdBitrix24] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -18,7 +19,7 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }: R
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-        if (!username.trim() || !password.trim() || !userIdBitrix24.trim() || !birthDate.trim()) {
+        if (!username.trim() || !password.trim() || !email.trim() || !userIdBitrix24.trim() || !birthDate.trim()) {
         setError('Todos os campos são obrigatórios.');
         return;
     };
@@ -34,7 +35,7 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }: R
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ username, password, user_id_bitrix24: userIdBitrix24, birth_date: birthDate }),
+        body: JSON.stringify({ username, password, email, user_id_bitrix24: userIdBitrix24, birth_date: birthDate }),
       });
 
       const data = await response.json();
@@ -78,6 +79,24 @@ export default function RegisterScreen({ onRegisterSuccess, onSwitchToLogin }: R
                     onChange={(e) => setUsername(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-slate-900 placeholder-slate-400"
                     placeholder="Digite seu nome de usuário"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
+                  E-mail
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-slate-900 placeholder-slate-400"
+                    placeholder="Digite seu e-mail"
                     required
                   />
                 </div>

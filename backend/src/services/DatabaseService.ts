@@ -1,6 +1,7 @@
 import { PrismaClient, type User, type Submission, type SubmissionStatus } from '@prisma/client';
 import { DatabaseConnection } from '../config/DatabaseConnection.js';
 import { SubmissionData } from '../models/SubmissionData.js';
+import { prisma } from '../config/DatabaseConnection.js';
 
 export class DatabaseCreateResult {
   constructor(
@@ -134,5 +135,60 @@ export class DatabaseService {
     } catch (error) {
       return null;
     }
+  }
+
+  /**
+   * Retorna o ranking de usuários baseado no número total de submissões.
+   */
+  async getUserRanking() {
+    return prisma.$queryRaw`
+      SELECT
+        u.username,
+        u.id as "userId",
+        COUNT(s.id)::int as "submissionCount"
+      FROM "User" u
+      LEFT JOIN "Submission" s ON u.id = s."userId"
+      GROUP BY u.id, u.username
+      ORDER BY "submissionCount" DESC;
+    `;
+  }
+
+  /**
+   * Retorna a contagem de submissões por dia nos últimos N dias.
+   * @param days O número de dias para olhar para trás.
+   */
+  async getSubmissionsLastNDays(days: number = 7) {
+    return prisma.$queryRaw`
+      SELECT
+        DATE(s."createdAt")::date as date,
+        COUNT(s.id)::int as count
+      FROM "Submission" s
+      WHERE s."createdAt" >= NOW() - (INTERVAL '1 day' * ${days})
+      GROUP BY DATE(s."createdAt")
+      ORDER BY date ASC;
+    `;
+  }
+
+  /**
+   * Retorna a atividade mais recente dos usuários.
+   */
+  async getRecentUserActivity() {
+    return prisma.$queryRaw`
+      WITH LastSubmission AS (
+        SELECT
+          s."userId",
+          MAX(s."createdAt") as "lastActivity"
+        FROM "Submission" s
+        GROUP BY s."userId"
+      )
+      SELECT
+        u.username,
+        u.id as "userId",
+        ls."lastActivity"
+      FROM "User" u
+      JOIN LastSubmission ls ON u.id = ls."userId"
+      ORDER BY ls."lastActivity" DESC
+      LIMIT 10;
+    `;
   }
 }

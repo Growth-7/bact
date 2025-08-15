@@ -201,8 +201,24 @@ function bufferToBase64(buffer: Buffer): string {
   return buffer.toString('base64');
 }
 
+// Retry simples em caso de 5xx (ex.: 502 Bitrix)
+async function postWithRetry(url: string, data: any, attempts = 3): Promise<any> {
+  let lastErr: any = null;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await axios.post(url, data, { timeout: 15000 });
+    } catch (err: any) {
+      lastErr = err;
+      const status = err?.response?.status;
+      if (status && status < 500) break; // não retry em 4xx
+      await new Promise(r => setTimeout(r, 800 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 async function processSubmissionAsync(submissionId: string, body: any, files: Express.Multer.File[]): Promise<void> {
-    const { submissionType, documentType, idFamilia, idRequerente, bitrixUserId, nomeFamilia, nomeRequerente } = body;
+    const { submissionType, documentType, idFamilia, idRequerente, bitrixUserId, nomeFamilia, nomeRequerente, documentNature, documentoVinculado } = body;
 
     try {
         await prisma.submission.update({
@@ -219,11 +235,16 @@ async function processSubmissionAsync(submissionId: string, body: any, files: Ex
 
         let targetFolderId: string;
         if (submissionType === 'familia') {
-            // Cria uma subpasta com o nome do tipo de documento
             targetFolderId = await getOrCreateFolder(documentType, familiaFolderId);
         } else {
-            // Lógica original para 'requerente'
-            targetFolderId = idRequerente ? await getOrCreateFolder(idRequerente, familiaFolderId) : familiaFolderId;
+            const requerenteFolderId = idRequerente ? await getOrCreateFolder(idRequerente, familiaFolderId) : familiaFolderId;
+            if (documentNature === 'Traduzido') {
+                targetFolderId = await getOrCreateFolder('Traduzidos', requerenteFolderId);
+            } else if (documentNature === 'Apostilado') {
+                targetFolderId = await getOrCreateFolder('Apostilamentos', requerenteFolderId);
+            } else {
+                targetFolderId = requerenteFolderId;
+            }
         }
 
         const uploadedFileUrls: string[] = [];
@@ -257,11 +278,8 @@ async function processSubmissionAsync(submissionId: string, body: any, files: Ex
         const BITRIX_WEBHOOK_URL = process.env.BITRIX_WEBHOOK_URL;
         if (!BITRIX_WEBHOOK_URL) throw new Error("Webhook do Bitrix24 não configurado.");
 
-        const webhookBase = BITRIX_WEBHOOK_URL.endsWith('/') ? BITRIX_WEBHOOK_URL : `${BITRIX_WEBHOOK_URL}/`;
-
         const bitrixDealTitle = `${documentType} - ${submissionType === 'familia' ? nomeFamilia : nomeRequerente || nomeFamilia}`;
 
-        // Calcular tamanho aproximado do payload de anexos base64
         const approxBytes = bitrixFiles.reduce((acc, f) => acc + (f.data?.length || 0), 0) * 0.75; // base64 -> bytes (~)
         const MAX_BYTES = Number(process.env.BITRIX_MAX_ATTACH_BYTES || 3_000_000); // ~3MB por segurança
         const shouldOmitAttachments = approxBytes > MAX_BYTES;
@@ -269,46 +287,69 @@ async function processSubmissionAsync(submissionId: string, body: any, files: Ex
         const fields: any = {
           title: bitrixDealTitle,
           ufCrm48IdFamilia: String(idFamilia || ""),
-          ufCrm48IdRequerente: String(idRequerente || ""),
+          ufCrm48_IdRequerente: String(idRequerente || ""),
           ufCrm48LinkDrive: uploadedFileUrls,
           ufCrm48IdUsuario: Number(bitrixUserId),
         };
-        if (!shouldOmitAttachments) {
+        if (documentNature === 'Traduzido') {
+          fields.ufCrm48DocumentoTraduzido = bitrixFiles.map(f => [f.filename, f.data]);
+        } else if (documentNature === 'Apostilado') {
+          fields.ufCrm48DocumentoApostilado = bitrixFiles.map(f => [f.filename, f.data]);
+        } else if (!shouldOmitAttachments) {
           fields.ufCrm48DocumentoScaneado = bitrixFiles.map(f => [f.filename, f.data]);
         } else {
           fields.ufCrm48DocumentoScaneado = [];
         }
 
-        const bitrixData = {
-          entityTypeId: 1132,
-          fields,
-        };
+        const webhookBase = BITRIX_WEBHOOK_URL.endsWith('/') ? BITRIX_WEBHOOK_URL : `${BITRIX_WEBHOOK_URL}/`;
+        let bitrixDealId: string | null = null;
+        let bitrixResponse;
+        let wasUpdated = false;
 
-        // Retry simples em caso de 5xx (ex.: 502 Bitrix)
-        async function postWithRetry(url: string, data: any, attempts = 3): Promise<any> {
-          let lastErr: any = null;
-          for (let i = 0; i < attempts; i++) {
-            try {
-              return await axios.post(url, data, { timeout: 15000 });
-            } catch (err: any) {
-              lastErr = err;
-              const status = err?.response?.status;
-              if (status && status < 500) break; // não retry em 4xx
-              await new Promise(r => setTimeout(r, 800 * (i + 1)));
-            }
-          }
-          throw lastErr;
+        // 1. Tenta encontrar um card existente no Bitrix pelo ID do Requerente e Título
+        console.log(`Buscando card existente no Bitrix para o requerente: ${idRequerente} e título: ${bitrixDealTitle}`);
+        const listData = {
+            entityTypeId: 1132,
+            filter: {
+                ufCrm48_IdRequerente: idRequerente,
+                title: bitrixDealTitle,
+            },
+            select: ["id"]
+        };
+        const listResponse = await postWithRetry(`${webhookBase}crm.item.list.json`, listData);
+        const existingItems = listResponse?.data?.result?.items;
+
+        if (existingItems && existingItems.length > 0) {
+            bitrixDealId = existingItems[0].id;
+            console.log(`Card encontrado no Bitrix. ID: ${bitrixDealId}. Atualizando...`);
+            wasUpdated = true;
+
+            const updateData = {
+                entityTypeId: 1132,
+                id: bitrixDealId,
+                fields,
+            };
+            bitrixResponse = await postWithRetry(`${webhookBase}crm.item.update.json`, updateData);
+        } else {
+            console.log('Nenhum card correspondente encontrado. Criando um novo card no Bitrix...');
+            const createData = {
+                entityTypeId: 1132,
+                fields,
+            };
+            bitrixResponse = await postWithRetry(`${webhookBase}crm.item.add.json`, createData);
+            bitrixDealId = bitrixResponse?.data?.result?.item?.id || bitrixResponse?.data?.result?.id || null;
         }
 
-        const bitrixResponse = await postWithRetry(`${webhookBase}crm.item.add.json`, bitrixData);
-        const bitrixDealId = bitrixResponse?.data?.result?.item?.id || bitrixResponse?.data?.result?.id || null;
+        const statusDetails = wasUpdated
+            ? 'Concluído: o card existente no Bitrix24 foi atualizado com sucesso.'
+            : 'Concluído: um novo card foi criado no Bitrix24.';
 
         await prisma.submission.update({
             where: { id: submissionId },
           data: {
               bitrixDealId: bitrixDealId ? String(bitrixDealId) : undefined,
               status: 'COMPLETED',
-              statusDetails: shouldOmitAttachments ? 'Concluído: anexos enviados via Drive (payload ao Bitrix reduzido)' : 'Processo concluído com sucesso!',
+              statusDetails,
           },
         });
 
@@ -326,7 +367,7 @@ async function processSubmissionAsync(submissionId: string, body: any, files: Ex
 }
 
 export const handleSubmission = async (req: Request, res: Response) => {
-    const { userId, location, submissionType, documentType, nomeFamilia, idFamilia } = req.body;
+    const { userId, location, submissionType, documentType, nomeFamilia, idFamilia, documentoVinculado, documentNature } = req.body;
     let { nomeRequerente, idRequerente } = req.body;
 
     if (!userId) {
@@ -354,6 +395,8 @@ export const handleSubmission = async (req: Request, res: Response) => {
                 idFamilia: idFamilia || '',
                 nomeRequerente,
                 idRequerente,
+                documentoVinculado,
+                documentNature,
                 fileUrls: [],
                 status: 'PENDING',
                 statusDetails: 'Aguardando início do processamento.',

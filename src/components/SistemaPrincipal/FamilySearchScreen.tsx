@@ -1,15 +1,17 @@
-import React, { useEffect, useState } from 'react';
-import { Search, Users, ArrowRight, ArrowLeft, Loader2, PlusCircle } from 'lucide-react';
-import Layout from './Layout';
-import { Family } from '../types';
+import React, { useEffect, useState, useRef } from 'react';
+import { Search, Users, ArrowRight, ArrowLeft, Loader2, PlusCircle, Hash, Scan } from 'lucide-react';
+import Layout from '../Layout';
+import { Family } from '../../types';
 import AddFamilyModal from './AddFamilyModal';
+import AddFamilyWithIDModal from './AddFamilyWithIDModal';
 
 interface FamilySearchScreenProps {
   onFamilySelect: (family: Family) => void;
   onBack: () => void;
+  onNavigateToAdmin?: () => void;
 }
 
-export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySearchScreenProps) {
+export default function FamilySearchScreen({ onFamilySelect, onBack, onNavigateToAdmin }: FamilySearchScreenProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<Family[]>([]);
@@ -17,7 +19,11 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
   const [myFamilies, setMyFamilies] = useState<Array<{ id: string; name: string; lastAt?: string; total?: number }>>([]);
   const [filter, setFilter] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isAddWithIDModalOpen, setIsAddWithIDModalOpen] = useState(false);
+  const [initialFamilyId, setInitialFamilyId] = useState<string | undefined>(undefined);
   const [userId, setUserId] = useState<string | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
   const supabaseKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
@@ -48,6 +54,18 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
       }
     } catch {}
   }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [menuRef]);
 
   const handleSearch = async () => {
     if (!searchTerm.trim()) return;
@@ -101,8 +119,14 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
     onFamilySelect(newFamily);
   };
 
+  const handleAddWithIDSubmit = (familyId: string) => {
+    setInitialFamilyId(familyId);
+    setIsAddWithIDModalOpen(false);
+    setIsAddModalOpen(true);
+  };
+
   return (
-    <Layout title="Buscar Família" showGreeting>
+    <Layout title="Buscar Família" showGreeting onNavigateToAdmin={onNavigateToAdmin}>
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 fade-in">
         {/* Saudação também nesta tela (herdada do Layout no topo) */}
         <div className="mb-8">
@@ -135,14 +159,53 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
               )}
               <span>Buscar</span>
             </button>
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              title="Adicionar uma nova família"
-              className="bg-green-600 hover:bg-green-700 text-white font-semibold py-4 px-8 rounded-xl transition-all duration-200 flex items-center space-x-2 transform hover:scale-105 shadow-lg hover:shadow-xl"
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>Nova Família</span>
-            </button>
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                title="Adicionar uma nova família"
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold py-4 px-8 rounded-xl transition-all duration-200 flex items-center space-x-2 transform hover:scale-105 shadow-lg hover:shadow-xl"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>Nova Família</span>
+              </button>
+              {isMenuOpen && (
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-2xl z-20 border border-slate-200 animate-fadeIn">
+                  <div className="p-4 border-b border-slate-200">
+                    <h3 className="font-semibold text-slate-800">Como deseja criar a família?</h3>
+                    <p className="text-sm text-slate-500 mt-1">Escolha uma das opções abaixo.</p>
+                  </div>
+                  <div className="p-2">
+                    <button
+                      onClick={() => {
+                        setIsAddWithIDModalOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="flex items-center w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                      <Hash className="w-6 h-6 mr-4 text-blue-500" />
+                      <div>
+                        <span className="font-semibold">Com ID</span>
+                        <p className="text-xs text-slate-500">Para famílias com documento de ID.</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setInitialFamilyId(undefined);
+                        setIsAddModalOpen(true);
+                        setIsMenuOpen(false);
+                      }}
+                      className="flex items-center w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                      <Scan className="w-6 h-6 mr-4 text-green-500" />
+                      <div>
+                        <span className="font-semibold">Sem ID</span>
+                        <p className="text-xs text-slate-500">Criação padrão para novas famílias.</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -269,6 +332,12 @@ export default function FamilySearchScreen({ onFamilySelect, onBack }: FamilySea
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onFamilyAdd={handleFamilyAdded}
+        initialFamilyId={initialFamilyId}
+      />
+      <AddFamilyWithIDModal
+        isOpen={isAddWithIDModalOpen}
+        onClose={() => setIsAddWithIDModalOpen(false)}
+        onSubmit={handleAddWithIDSubmit}
       />
     </Layout>
   );
