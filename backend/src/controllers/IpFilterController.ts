@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { prisma } from '../config/DatabaseConnection';
+import { prisma } from '../config/DatabaseConnection.js';
 
 class IpFilterController {
   public async logBlockedIp(req: Request, res: Response): Promise<void> {
