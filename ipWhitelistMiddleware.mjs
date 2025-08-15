@@ -1,6 +1,7 @@
 import path from 'path';
 
 const allowedIps = [
+  '190.123.8.237',
   '187.120.14.146', 
   '177.126.4.226',
   '177.30.133.61', // IP do usuário adicionado
