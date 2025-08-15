@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import IpFilterController from '../controllers/IpFilterController';
+import IpFilterController from '../controllers/IpFilterController.js';
 
 const router = Router();
 
