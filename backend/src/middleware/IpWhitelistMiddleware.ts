@@ -4,6 +4,7 @@ const allowedIps: string[] = [
   '187.120.14.146', 
   '177.126.4.226',
   '177.30.133.61', // IP do usuário adicionado
+  '2804:214:906c:e1ab:7975:e4da:b6e4:5fa1', // Seu IP (IPv6)
   // Adicione aqui outros IPs de desenvolvimento ou de escritórios
 ];
 
